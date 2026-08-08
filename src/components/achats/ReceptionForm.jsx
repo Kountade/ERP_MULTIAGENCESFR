@@ -1,4 +1,4 @@
-// ReceptionForm.jsx - COMPLET
+// src/components/achats/ReceptionForm.jsx - COMPLET CORRIGÉ
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
@@ -24,6 +24,7 @@ const ReceptionForm = () => {
   const [items, setItems] = useState([]);
   const [totalValue, setTotalValue] = useState(0);
   const [totalItemsToReceive, setTotalItemsToReceive] = useState(0);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
 
   const showNotification = (message, type = 'success', details = null) => {
     setNotification({ show: true, message, type, details });
@@ -35,18 +36,15 @@ const ReceptionForm = () => {
     const fetchCommandes = async () => {
       setLoading(true);
       try {
-        // ✅ Utiliser l'API spécifique pour les commandes réceptionnables
         let response;
         try {
           response = await AxiosInstance.get('/purchase-orders/receivable/');
         } catch {
-          // Fallback
           response = await AxiosInstance.get('/purchase-orders/');
         }
         
         let allOrders = response.data || [];
         
-        // Filtrer si l'API spécifique n'est pas disponible
         if (!response.config.url.includes('/receivable/')) {
           allOrders = allOrders.filter(order => {
             if (['draft', 'received', 'cancelled', 'rejected'].includes(order.status)) {
@@ -59,7 +57,6 @@ const ReceptionForm = () => {
           });
         }
         
-        // ✅ Trier : partiellement reçues en premier
         const sortedOrders = allOrders.sort((a, b) => {
           if (a.status === 'partially_received' && b.status !== 'partially_received') return -1;
           if (a.status !== 'partially_received' && b.status === 'partially_received') return 1;
@@ -170,7 +167,6 @@ const ReceptionForm = () => {
 
       setCommandeSelected(order);
 
-      // ✅ Filtrer les articles qui ont encore des quantités à recevoir
       const loadedItems = (order.items || [])
         .filter(item => {
           const ordered = item.quantity_ordered || 0;
@@ -323,7 +319,40 @@ const ReceptionForm = () => {
     }
   };
 
-  // Soumission
+  // ✅ GÉNÉRER LA FACTURE
+  const generateInvoice = async (receiptId) => {
+    if (!receiptId) {
+      console.error('❌ ID de réception manquant');
+      return null;
+    }
+
+    setGeneratingInvoice(true);
+    try {
+      console.log('📄 GÉNÉRATION FACTURE POUR ID:', receiptId);
+      const response = await AxiosInstance.post(`/purchase-receipts/${receiptId}/generate_invoice/`);
+      console.log('✅ FACTURE GÉNÉRÉE:', response.data);
+      
+      if (response.data.success) {
+        showNotification(`✅ Facture ${response.data.invoice.invoice_number} créée !`, 'success');
+        return response.data;
+      } else {
+        showNotification('⚠️ ' + (response.data.error || 'Erreur génération'), 'warning');
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ ERREUR GÉNÉRATION FACTURE:', error);
+      if (error.response?.data?.error) {
+        showNotification('⚠️ ' + error.response.data.error, 'warning');
+      } else {
+        showNotification('⚠️ Erreur lors de la génération de la facture', 'warning');
+      }
+      return null;
+    } finally {
+      setGeneratingInvoice(false);
+    }
+  };
+
+  // ✅ SOUMISSION CORRIGÉE
   const handleSubmit = async () => {
     if (!purchaseOrder) {
       showNotification('Veuillez sélectionner une commande', 'error');
@@ -353,18 +382,35 @@ const ReceptionForm = () => {
       }))
     };
 
+    console.log('📤 PAYLOAD:', payload);
+
     try {
+      let response;
       if (isEditMode) {
-        await AxiosInstance.put(`/purchase-receipts/${id}/`, payload);
+        response = await AxiosInstance.put(`/purchase-receipts/${id}/`, payload);
         showNotification('Réception modifiée avec succès !', 'success');
+        setTimeout(() => navigate('/receptions'), 2000);
       } else {
-        await AxiosInstance.post('/purchase-receipts/', payload);
+        // ✅ CRÉER LA RÉCEPTION
+        response = await AxiosInstance.post('/purchase-receipts/', payload);
+        const newReceiptId = response.data.id;
+        
+        console.log('✅ RÉCEPTION CRÉÉE:', response.data);
+        console.log('📦 ID RÉCEPTION:', newReceiptId);
+        
         showNotification('Réception créée avec succès !', 'success');
+        
+        // ✅ GÉNÉRER LA FACTURE
+        if (newReceiptId) {
+          // Attendre un peu pour que la base de données soit à jour
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          await generateInvoice(newReceiptId);
+        }
+        
+        setTimeout(() => navigate('/receptions'), 3000);
       }
-      
-      setTimeout(() => navigate('/receptions'), 2000);
     } catch (error) {
-      console.error('Erreur:', error);
+      console.error('❌ ERREUR:', error);
       let errorMessage = 'Erreur lors de l\'enregistrement';
       
       if (error.response?.data) {
@@ -530,7 +576,6 @@ const ReceptionForm = () => {
                   <option key={cmd.id} value={cmd.id}>
                     {cmd.order_number} - {cmd.supplier?.company_name || cmd.supplier_name} - 
                     {new Date(cmd.order_date).toLocaleDateString('fr-FR')} - 
-                    {/* ✅ Indicateur pour les commandes partiellement reçues */}
                     {cmd.status === 'partially_received' ? '⚠️ ' : ''}
                     {cmd.status_display || cmd.status}
                     {cmd.items && cmd.items.length > 0 && 
@@ -765,11 +810,17 @@ const ReceptionForm = () => {
             <button
               className="btn btn-primary gap-2 shadow-lg hover:shadow-xl transition-all"
               onClick={handleSubmit}
-              disabled={submitting || !hasItemsToReceive}
+              disabled={submitting || !hasItemsToReceive || generatingInvoice}
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {isEditMode ? 'Modifier la réception' : 'Valider la réception'}
+              {isEditMode ? 'Modifier la réception' : 'Valider'}
             </button>
+            {generatingInvoice && (
+              <span className="text-sm text-info flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Génération de la facture...
+              </span>
+            )}
           </div>
         </div>
       </div>

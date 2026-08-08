@@ -1,17 +1,17 @@
 // src/components/Navbar.jsx - Version Complète avec Trésorerie et Lots
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { 
-  LayoutDashboard, 
-  ShoppingBag, 
-  Users, 
-  Package, 
-  Building2, 
-  Tags, 
-  LogOut, 
-  UserCircle, 
-  Settings, 
-  Warehouse, 
+import {
+  LayoutDashboard,
+  ShoppingBag,
+  Users,
+  Package,
+  Building2,
+  Tags,
+  LogOut,
+  UserCircle,
+  Settings,
+  Warehouse,
   ShoppingCart,
   Handshake,
   Store,
@@ -136,7 +136,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
     'ADMINISTRATION': false,
     'MON ESPACE': false
   })
-  
+ 
   const [userInitial, setUserInitial] = useState('')
   const [userFullName, setUserFullName] = useState('')
   const [agences, setAgences] = useState([])
@@ -149,14 +149,14 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isLoading, setIsLoading] = useState(true)
   const [userAgencesIds, setUserAgencesIds] = useState([])
-  
+ 
   // États comptabilité
   const [ecrituresEnAttente, setEcrituresEnAttente] = useState(0)
   const [facturesImpayees, setFacturesImpayees] = useState(0)
   const [tresorerie, setTresorerie] = useState(0)
   const [clotureEnCours, setClotureEnCours] = useState(false)
   const [balancesDisponibles, setBalancesDisponibles] = useState(0)
-  
+ 
   // États trésorerie détaillés
   const [tresorerieDetails, setTresorerieDetails] = useState({
     solde_global: 0,
@@ -172,7 +172,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
     alertes_tresorerie: []
   })
   const [tresorerieLoading, setTresorerieLoading] = useState(false)
-  
+ 
   // Données pour les différentes sections
   const [achatsALivrer, setAchatsALivrer] = useState(0)
   const [alertsCount, setAlertsCount] = useState(0)
@@ -180,7 +180,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   const [stocksFaibles, setStocksFaibles] = useState(0)
   const [ventesImpayees, setVentesImpayees] = useState(0)
   const [absencesEnAttente, setAbsencesEnAttente] = useState(0)
-  
+ 
   // ✅ NOUVEAU : État pour les lots
   const [lotsStats, setLotsStats] = useState({
     total: 0,
@@ -240,38 +240,38 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   // Charger les données de trésorerie
   const loadTresorerieData = async (agenceId = null, isComptableOrAdmin = false) => {
     if (!isComptableOrAdmin) return
-    
+   
     setTresorerieLoading(true)
     try {
       const params = agenceId ? `?agence_id=${agenceId}` : ''
-      
+     
       const tresorerieRes = await AxiosInstance.get(`/tresorerie/${params}`).catch(() => ({ data: { solde_final: 0 } }))
       const soldeGlobal = tresorerieRes.data?.solde_final || 0
       setTresorerie(soldeGlobal)
-      
+     
       const caissesRes = await AxiosInstance.get(`/caisses/${params}`).catch(() => ({ data: [] }))
       const caisses = caissesRes.data || []
       const soldeCaisses = caisses.reduce((sum, c) => sum + (c.solde_actuel || 0), 0)
-      
+     
       const comptesRes = await AxiosInstance.get(`/comptes-bancaires/${params}`).catch(() => ({ data: [] }))
       const comptes = comptesRes.data || []
       const soldeBanques = comptes.reduce((sum, c) => sum + (c.solde || 0), 0)
-      
+     
       const today = new Date().toISOString().split('T')[0]
       const mouvementsRes = await AxiosInstance.get(`/mouvements/?date=${today}${params}`).catch(() => ({ data: [] }))
       const mouvements = mouvementsRes.data || []
       const encaissements = mouvements.filter(m => m.type === 'encaissement').reduce((sum, m) => sum + (m.montant || 0), 0)
       const decaissements = mouvements.filter(m => m.type === 'decaissement').reduce((sum, m) => sum + (m.montant || 0), 0)
-      
+     
       const previsionsRes = await AxiosInstance.get(`/previsions/${params}`).catch(() => ({ data: [] }))
       const previsions = previsionsRes.data || []
       const previsions7j = previsions
         .filter(p => new Date(p.date) >= new Date() && new Date(p.date) <= new Date(Date.now() + 7 * 86400000))
         .reduce((sum, p) => sum + (p.montant_prevu || 0), 0)
-      
+     
       const alertesRes = await AxiosInstance.get(`/alertes-tresorerie/${params}`).catch(() => ({ data: [] }))
       const alertes = alertesRes.data || []
-      
+     
       setTresorerieDetails({
         solde_global: soldeGlobal,
         solde_caisses: soldeCaisses,
@@ -285,7 +285,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         previsions_7j: previsions7j,
         alertes_tresorerie: alertes.filter(a => a.est_active)
       })
-      
+     
     } catch (error) {
       console.error('❌ Erreur chargement trésorerie:', error)
     } finally {
@@ -300,43 +300,43 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       try {
         const agencesRes = await AxiosInstance.get('/agences/')
         const toutesLesAgences = agencesRes.data || []
-        
+       
         let userRolesAgence = []
         let userFullData = null
-        
+       
         if (user?.id) {
           const userRes = await AxiosInstance.get(`/users/${user.id}/`)
           userFullData = userRes.data
           userRolesAgence = userFullData.roles_agence || []
-          
+         
           const accessibleIds = userRolesAgence
             .filter(r => r.est_actif)
             .map(r => r.agence_id)
           setUserAgencesIds(accessibleIds)
         }
-        
+       
         const agencesAvecAcces = toutesLesAgences.map(agence => {
-          const hasAccess = user?.role_global === 'pdg' || 
-                           user?.role_global === 'drh' || 
+          const hasAccess = user?.role_global === 'pdg' ||
+                           user?.role_global === 'drh' ||
                            checkUserAccessToAgence(agence.id, userRolesAgence)
           return { ...agence, hasAccess }
         })
-        
+       
         setAgences(agencesAvecAcces)
-        
+       
         const savedAgence = localStorage.getItem('AgenceCourante')
         let currentAgence = null
-        
+       
         if (savedAgence) {
           const parsed = JSON.parse(savedAgence)
-          const hasAccess = user?.role_global === 'pdg' || 
-                           user?.role_global === 'drh' || 
+          const hasAccess = user?.role_global === 'pdg' ||
+                           user?.role_global === 'drh' ||
                            checkUserAccessToAgence(parsed.id, userRolesAgence)
           if (hasAccess) {
             currentAgence = parsed
           }
         }
-        
+       
         if (!currentAgence && agencesAvecAcces.length > 0) {
           const accessibleAgence = agencesAvecAcces.find(a => a.hasAccess)
           if (accessibleAgence) {
@@ -347,13 +347,13 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
             localStorage.setItem('AgenceCourante', JSON.stringify(agencesAvecAcces[0]))
           }
         }
-        
+       
         setAgenceCourante(currentAgence)
-        
+       
         const isComptable = isUserComptable(userRolesAgence)
         const isPDGorDRH = user?.role_global === 'pdg' || user?.role_global === 'drh'
         const isComptableOrAdmin = isComptable || isPDGorDRH
-        
+       
         if (isComptable) {
           setEffectiveRole('comptable')
           setRoleType('agence')
@@ -369,36 +369,36 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           setEffectiveRole(userRole)
           setRoleType('global')
         }
-        
+       
         const agenceId = currentAgence?.id
         const params = (!isPDGorDRH && agenceId && isComptable) ? `?agence_id=${agenceId}` : ''
-        
+       
         // Charger les données comptables
         if (isComptableOrAdmin) {
           try {
             const ecrituresRes = await AxiosInstance.get(`/ecritures/?status=brouillon${params}`).catch(() => ({ data: [] }))
             setEcrituresEnAttente(ecrituresRes.data?.length || 0)
-            
+           
             const facturesRes = await AxiosInstance.get(`/factures-comptables/?status=impayee${params}`).catch(() => ({ data: [] }))
             setFacturesImpayees(facturesRes.data?.length || 0)
-            
+           
             const clotureRes = await AxiosInstance.get(`/clotures/?status=en_cours${params}`).catch(() => ({ data: [] }))
             setClotureEnCours((clotureRes.data?.length || 0) > 0)
-            
+           
             const balancesRes = await AxiosInstance.get(`/balances/${params}`).catch(() => ({ data: [] }))
             setBalancesDisponibles(balancesRes.data?.length || 0)
-            
+           
             await loadTresorerieData(agenceId, isComptableOrAdmin)
-            
+           
           } catch (e) {
             console.log('⚠️ Erreur chargement données comptables:', e)
           }
         }
-        
+       
         // ✅ NOUVEAU : Charger les données des lots
         const lotsRes = await AxiosInstance.get(`/lots/${params}`).catch(() => ({ data: [] }))
         const lotsData = lotsRes.data || []
-        
+       
         const totalLots = lotsData.length
         const expiringSoon = lotsData.filter(l => {
           if (!l.expiry_date || l.is_expired || l.quality_status === 'expired') return false
@@ -407,14 +407,14 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         }).length
         const expired = lotsData.filter(l => l.is_expired || l.quality_status === 'expired').length
         const damaged = lotsData.filter(l => l.quality_status === 'damaged').length
-        
+       
         setLotsStats({
           total: totalLots,
           expiringSoon,
           expired,
           damaged
         })
-        
+       
         // Charger les autres données
         const [achatsRes, alertsRes, fournisseursRes, stocksRes, ventesRes, absencesRes] = await Promise.all([
           AxiosInstance.get(`/purchase-orders/?status=confirmed${params}`).catch(() => ({ data: [] })),
@@ -424,14 +424,14 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           AxiosInstance.get(`/sale-orders/?payment_status=pending${params}`).catch(() => ({ data: [] })),
           AxiosInstance.get(`/leaves/?status=pending${params}`).catch(() => ({ data: [] }))
         ])
-        
+       
         setAchatsALivrer(achatsRes.data?.length || 0)
         setAlertsCount(alertsRes.data?.length || 0)
         setFournisseursCount(fournisseursRes.data?.length || 0)
         setStocksFaibles(stocksRes.data?.length || 0)
         setVentesImpayees(ventesRes.data?.length || 0)
         setAbsencesEnAttente(absencesRes.data?.length || 0)
-        
+       
         // Construire les notifications
         const notifs = []
         if (stocksRes.data?.length) {
@@ -455,29 +455,29 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         if (absencesRes.data?.length) {
           notifs.push({ id: 'absences', title: 'Absences en attente', message: `${absencesRes.data.length} demande(s) de congé en attente`, link: '/leaves', type: 'info', time: "aujourd'hui" })
         }
-        
+       
         // ✅ NOUVEAU : Notifications pour les lots expirant bientôt
         if (expiringSoon > 0) {
-          notifs.push({ 
-            id: 'lots-expiring', 
-            title: '⚠️ Lots expirant bientôt', 
-            message: `${expiringSoon} lot(s) expirent dans moins de 30 jours`, 
-            link: '/lots', 
-            type: 'warning', 
-            time: "maintenant" 
+          notifs.push({
+            id: 'lots-expiring',
+            title: '⚠️ Lots expirant bientôt',
+            message: `${expiringSoon} lot(s) expirent dans moins de 30 jours`,
+            link: '/lots',
+            type: 'warning',
+            time: "maintenant"
           })
         }
         if (expired > 0) {
-          notifs.push({ 
-            id: 'lots-expired', 
-            title: '❌ Lots expirés', 
-            message: `${expired} lot(s) ont expiré`, 
-            link: '/lots', 
-            type: 'error', 
-            time: "maintenant" 
+          notifs.push({
+            id: 'lots-expired',
+            title: '❌ Lots expirés',
+            message: `${expired} lot(s) ont expiré`,
+            link: '/lots',
+            type: 'error',
+            time: "maintenant"
           })
         }
-        
+       
         // Alertes de trésorerie
         if (tresorerieDetails.alertes_tresorerie.length > 0) {
           tresorerieDetails.alertes_tresorerie.forEach(alerte => {
@@ -491,10 +491,10 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
             })
           })
         }
-        
+       
         setNotifications(notifs)
         setNotificationCount(notifs.length)
-        
+       
       } catch (error) {
         console.error('❌ Erreur chargement:', error)
         setEffectiveRole(userRole)
@@ -503,7 +503,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         setIsLoading(false)
       }
     }
-    
+   
     loadData()
   }, [])
 
@@ -515,7 +515,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         loadTresorerieData(agenceId, true)
       }
     }, 60000)
-    
+   
     return () => clearInterval(interval)
   }, [agenceCourante])
 
@@ -533,7 +533,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   // ============================================
   // 🚀 PERMISSIONS
   // ============================================
-  
+ 
   const isPDG = effectiveRole === 'pdg' && roleType === 'global'
   const isDRH = effectiveRole === 'drh' && roleType === 'global'
   const isChefAgence = effectiveRole === 'chef_agence'
@@ -582,21 +582,21 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       alert(`Vous n'avez pas accès à l'agence ${agence.nom}`)
       return
     }
-    
+   
     setAgenceCourante(agence)
     localStorage.setItem('AgenceCourante', JSON.stringify(agence))
-    
+   
     if (userData) {
       const { role, type } = determineEffectiveRole(userData, agence)
       setEffectiveRole(role)
       setRoleType(type)
     }
-    
+   
     const isComptableOrAdmin = isComptable || isPDG || isDRH
     if (isComptableOrAdmin) {
       loadTresorerieData(agence.id, true)
     }
-    
+   
     setIsAgencesMenuOpen(false)
     window.location.reload()
   }
@@ -611,8 +611,8 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
 
   // Formatage des montants
   const formatMontant = (montant) => {
-    return new Intl.NumberFormat('fr-FR', { 
-      style: 'currency', 
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
       currency: 'XOF',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
@@ -622,7 +622,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   // ============================================
   // 📋 MENU SECTIONS
   // ============================================
-  
+ 
   const menuSections = [
     {
       name: 'TABLEAU DE BORD',
@@ -654,6 +654,10 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       items: [
         { id: 'fournisseurs', text: 'Fournisseurs', icon: Building2, path: '/fournisseurs', permission: canViewSuppliers(), badge: fournisseursCount },
         { id: 'commandes', text: 'Commandes', icon: FileText, path: '/commandes-fournisseurs', permission: canViewPurchases(), badge: achatsALivrer },
+        // ✅ NOUVEAU : Factures Fournisseur
+        { id: 'factures-fournisseur', text: 'Factures Fournisseur', icon: Receipt, path: '/factures-fournisseur', permission: canViewPurchases(), badge: 0 },
+        // ✅ NOUVEAU : Paiement Fournisseur
+        { id: 'paiement-fournisseur', text: 'Paiement Fournisseur', icon: DollarSign, path: '/paiement-fournisseur', permission: canViewPurchases(), badge: 0 },
         { id: 'receptions', text: 'Réceptions', icon: Truck, path: '/receptions', permission: canViewPurchases() },
         { id: 'frais', text: 'Frais de réception', icon: DollarSign, path: '/frais', permission: canViewPurchases() },
         { id: 'catalogue', text: 'Catalogue', icon: ClipboardList, path: '/supplier-catalogs', permission: canViewPurchases() },
@@ -673,11 +677,11 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         { id: 'unites', text: 'Unités', icon: Ruler, path: '/units', permission: canViewInventory() },
         { id: 'reception', text: 'Réception stock', icon: Truck, path: '/stock-receipt', permission: canViewInventory() },
         // ✅ NOUVEAU : Menu Lots
-        { 
-          id: 'lots', 
-          text: 'Lots', 
-          icon: Layers, 
-          path: '/lots', 
+        {
+          id: 'lots',
+          text: 'Lots',
+          icon: Layers,
+          path: '/lots',
           permission: canViewInventory(),
           badge: lotsStats.expiringSoon || 0
         },
@@ -695,149 +699,149 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       icon: Calculator,
       permission: canViewComptabilite(),
       items: [
-        { 
-          id: 'dashboard-compta', 
-          text: 'Tableau de bord', 
-          icon: LayoutDashboard, 
-          path: '/dashboard/comptabilite', 
-          permission: canViewComptabilite() 
+        {
+          id: 'dashboard-compta',
+          text: 'Tableau de bord',
+          icon: LayoutDashboard,
+          path: '/dashboard/comptabilite',
+          permission: canViewComptabilite()
         },
-        { 
-          id: 'ecritures', 
-          text: 'Écritures comptables', 
-          icon: Notebook, 
-          path: '/ecritures', 
-          permission: canManageAccounting(), 
-          badge: ecrituresEnAttente 
+        {
+          id: 'ecritures',
+          text: 'Écritures comptables',
+          icon: Notebook,
+          path: '/ecritures',
+          permission: canManageAccounting(),
+          badge: ecrituresEnAttente
         },
-        { 
-          id: 'journaux', 
-          text: 'Journaux', 
-          icon: BookOpen, 
-          path: '/journaux', 
-          permission: canManageAccounting() 
+        {
+          id: 'journaux',
+          text: 'Journaux',
+          icon: BookOpen,
+          path: '/journaux',
+          permission: canManageAccounting()
         },
-        { 
-          id: 'plan-comptable', 
-          text: 'Plan comptable', 
-          icon: FileSpreadsheet, 
-          path: '/plan-comptable', 
-          permission: canManageAccounting() 
+        {
+          id: 'plan-comptable',
+          text: 'Plan comptable',
+          icon: FileSpreadsheet,
+          path: '/plan-comptable',
+          permission: canManageAccounting()
         },
-        { 
-          id: 'balances', 
-          text: 'Balances', 
-          icon: Scale, 
-          path: '/balances', 
-          permission: canViewAccountingReports(), 
-          badge: balancesDisponibles 
+        {
+          id: 'balances',
+          text: 'Balances',
+          icon: Scale,
+          path: '/balances',
+          permission: canViewAccountingReports(),
+          badge: balancesDisponibles
         },
-        { 
-          id: 'factures-comptables', 
-          text: 'Factures comptables', 
-          icon: ReceiptText, 
-          path: '/factures-comptables', 
-          permission: canViewAccountingReports(), 
-          badge: facturesImpayees 
+        {
+          id: 'factures-comptables',
+          text: 'Factures comptables',
+          icon: ReceiptText,
+          path: '/factures-comptables',
+          permission: canViewAccountingReports(),
+          badge: facturesImpayees
         },
-        { 
-          id: 'reglements', 
-          text: 'Règlements', 
-          icon: Banknote, 
-          path: '/reglements', 
-          permission: canViewAccountingReports() 
+        {
+          id: 'reglements',
+          text: 'Règlements',
+          icon: Banknote,
+          path: '/reglements',
+          permission: canViewAccountingReports()
         },
-        { 
-          id: 'tresorerie-dashboard', 
-          text: 'Dashboard Trésorerie', 
-          icon: LayoutDashboard, 
-          path: '/tresorerie/dashboard', 
-          permission: canViewTresorerie() 
+        {
+          id: 'tresorerie-dashboard',
+          text: 'Dashboard Trésorerie',
+          icon: LayoutDashboard,
+          path: '/tresorerie/dashboard',
+          permission: canViewTresorerie()
         },
-        { 
-          id: 'caisses', 
-          text: 'Caisses', 
-          icon: Coins, 
-          path: '/caisses', 
-          permission: canViewTresorerie() 
+        {
+          id: 'caisses',
+          text: 'Caisses',
+          icon: Coins,
+          path: '/caisses',
+          permission: canViewTresorerie()
         },
-        { 
-          id: 'comptes-bancaires', 
-          text: 'Comptes bancaires', 
-          icon: PiggyBank, 
-          path: '/comptes-bancaires', 
-          permission: canViewTresorerie() 
+        {
+          id: 'comptes-bancaires',
+          text: 'Comptes bancaires',
+          icon: PiggyBank,
+          path: '/comptes-bancaires',
+          permission: canViewTresorerie()
         },
-        { 
-          id: 'mouvements-tresorerie', 
-          text: 'Mouvements', 
-          icon: ArrowLeftRight, 
-          path: '/mouvements-tresorerie', 
-          permission: canViewTresorerie() 
+        {
+          id: 'mouvements-tresorerie',
+          text: 'Mouvements',
+          icon: ArrowLeftRight,
+          path: '/mouvements-tresorerie',
+          permission: canViewTresorerie()
         },
-        { 
-          id: 'previsions', 
-          text: 'Prévisions', 
-          icon: TrendingUp, 
-          path: '/previsions', 
-          permission: canViewTresorerie() 
+        {
+          id: 'previsions',
+          text: 'Prévisions',
+          icon: TrendingUp,
+          path: '/previsions',
+          permission: canViewTresorerie()
         },
-        { 
-          id: 'rapprochements', 
-          text: 'Rapprochements', 
-          icon: CheckCircle, 
-          path: '/rapprochements', 
-          permission: canViewTresorerie() 
+        {
+          id: 'rapprochements',
+          text: 'Rapprochements',
+          icon: CheckCircle,
+          path: '/rapprochements',
+          permission: canViewTresorerie()
         },
-        { 
-          id: 'frais-tresorerie', 
-          text: 'Frais', 
-          icon: Receipt, 
-          path: '/frais', 
-          permission: canViewTresorerie() 
+        {
+          id: 'frais-tresorerie',
+          text: 'Frais',
+          icon: Receipt,
+          path: '/frais',
+          permission: canViewTresorerie()
         },
-        { 
-          id: 'tresorerie-journaliere', 
-          text: 'Suivi journalier', 
-          icon: Calendar, 
-          path: '/tresorerie-journaliere', 
-          permission: canViewTresorerie() 
+        {
+          id: 'tresorerie-journaliere',
+          text: 'Suivi journalier',
+          icon: Calendar,
+          path: '/tresorerie-journaliere',
+          permission: canViewTresorerie()
         },
-        { 
-          id: 'compte-resultat', 
-          text: 'Compte de résultat', 
-          icon: ChartNoAxesColumn, 
-          path: '/compte-resultat', 
-          permission: canViewAccountingReports() 
+        {
+          id: 'compte-resultat',
+          text: 'Compte de résultat',
+          icon: ChartNoAxesColumn,
+          path: '/compte-resultat',
+          permission: canViewAccountingReports()
         },
-        { 
-          id: 'bilan', 
-          text: 'Bilan comptable', 
-          icon: Landmark, 
-          path: '/bilan', 
-          permission: canViewAccountingReports() 
+        {
+          id: 'bilan',
+          text: 'Bilan comptable',
+          icon: Landmark,
+          path: '/bilan',
+          permission: canViewAccountingReports()
         },
-        { 
-          id: 'indicateurs', 
-          text: 'Indicateurs KPI', 
-          icon: PieChart, 
-          path: '/indicateurs', 
-          permission: canViewAccountingReports() 
+        {
+          id: 'indicateurs',
+          text: 'Indicateurs KPI',
+          icon: PieChart,
+          path: '/indicateurs',
+          permission: canViewAccountingReports()
         },
-        { 
-          id: 'cloture', 
-          text: 'Clôture comptable', 
-          icon: ClipboardCheck, 
-          path: '/cloture', 
-          permission: canManageAccounting(), 
-          badge: clotureEnCours ? 1 : 0 
+        {
+          id: 'cloture',
+          text: 'Clôture comptable',
+          icon: ClipboardCheck,
+          path: '/cloture',
+          permission: canManageAccounting(),
+          badge: clotureEnCours ? 1 : 0
         },
-        { 
-          id: 'analyses-financieres', 
-          text: 'Analyses financières', 
-          icon: LineChart, 
-          path: '/analyses-financieres', 
-          permission: canViewAccountingReports() 
+        {
+          id: 'analyses-financieres',
+          text: 'Analyses financières',
+          icon: LineChart,
+          path: '/analyses-financieres',
+          permission: canViewAccountingReports()
         }
       ]
     },
@@ -899,9 +903,9 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const searchResults = searchQuery.length > 1 ? 
-    menuSections.flatMap(section => 
-      section.items.filter(item => 
+  const searchResults = searchQuery.length > 1 ?
+    menuSections.flatMap(section =>
+      section.items.filter(item =>
         item.permission &&
         (item.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
         section.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -916,7 +920,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-base-200 to-base-100">
-      
+     
       {/* Overlay recherche */}
       {isSearchOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setIsSearchOpen(false)}>
@@ -973,7 +977,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       <nav className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-r from-primary to-primary/90 shadow-xl border-b-2 border-accent">
         <div className="px-4 sm:px-6 lg:pl-72">
           <div className="flex items-center justify-between h-16">
-            
+           
             {/* Logo et menu toggle */}
             <div className="flex items-center gap-4">
               <button
@@ -983,7 +987,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
               >
                 {sidebarOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
               </button>
-              
+             
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="lg:hidden p-2 rounded-lg text-primary-content hover:bg-primary-content/10 transition-colors"
@@ -1025,7 +1029,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
 
             {/* Actions droite */}
             <div className="flex items-center gap-2">
-              
+             
               {/* Recherche */}
               <button
                 onClick={() => setIsSearchOpen(true)}
@@ -1049,7 +1053,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                     </span>
                     {tresorerieLoading && <Loader2 className="w-3 h-3 text-success animate-spin" />}
                   </button>
-                  
+                 
                   {/* Tooltip détaillé */}
                   <div className="absolute right-0 mt-2 w-80 bg-base-100 rounded-xl shadow-2xl z-50 border border-success/20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                     <div className="p-3 bg-gradient-to-r from-success/10 to-transparent border-b border-success/20">
@@ -1132,8 +1136,8 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                   <button
                     onClick={() => canSwitchAgence() && setIsAgencesMenuOpen(!isAgencesMenuOpen)}
                     className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm ${
-                      canSwitchAgence() 
-                        ? 'bg-primary-content/10 text-primary-content hover:bg-primary-content/20 cursor-pointer' 
+                      canSwitchAgence()
+                        ? 'bg-primary-content/10 text-primary-content hover:bg-primary-content/20 cursor-pointer'
                         : 'bg-primary-content/5 text-primary-content/80 cursor-default'
                     }`}
                     disabled={!canSwitchAgence()}
@@ -1142,7 +1146,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                     <span className="max-w-32 truncate">{agenceCourante.nom}</span>
                     {canSwitchAgence() && <ChevronDown className="w-3 h-3" />}
                   </button>
-                  
+                 
                   {canSwitchAgence() && isAgencesMenuOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setIsAgencesMenuOpen(false)}></div>
@@ -1156,17 +1160,17 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                           {agences.map((agence) => {
                             const isCurrent = agenceCourante?.id === agence.id
                             const hasAccess = agence.hasAccess || isPDG || isDRH
-                            
+                           
                             return (
                               <button
                                 key={agence.id}
                                 onClick={() => changerAgence(agence)}
                                 disabled={!hasAccess && !isCurrent}
                                 className={`w-full flex items-center gap-3 px-4 py-3 transition-colors text-left ${
-                                  isCurrent 
-                                    ? 'bg-primary/10 border-l-3 border-primary' 
-                                    : hasAccess 
-                                      ? 'hover:bg-primary/5' 
+                                  isCurrent
+                                    ? 'bg-primary/10 border-l-3 border-primary'
+                                    : hasAccess
+                                      ? 'hover:bg-primary/5'
                                       : 'opacity-50 cursor-not-allowed'
                                 }`}
                               >
@@ -1220,7 +1224,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                     </span>
                   )}
                 </button>
-                
+               
                 {isNotificationsOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsNotificationsOpen(false)}></div>
@@ -1244,10 +1248,10 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                             className="w-full flex items-start gap-3 px-4 py-3 hover:bg-primary/5 transition-colors text-left"
                           >
                             <div className={`p-2 rounded-lg ${
-                              notif.type === 'warning' ? 'bg-warning/20' : 
+                              notif.type === 'warning' ? 'bg-warning/20' :
                               notif.type === 'error' ? 'bg-error/20' : 'bg-info/20'
                             }`}>
-                              {notif.type === 'warning' ? <AlertTriangle className="w-4 h-4 text-warning" /> : 
+                              {notif.type === 'warning' ? <AlertTriangle className="w-4 h-4 text-warning" /> :
                                notif.type === 'error' ? <AlertTriangle className="w-4 h-4 text-error" /> :
                                <ShoppingBag className="w-4 h-4 text-info" />}
                             </div>
@@ -1291,7 +1295,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                   </div>
                   <ChevronDown className="w-4 h-4 text-primary-content hidden sm:block" />
                 </button>
-                
+               
                 {isUserMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsUserMenuOpen(false)}></div>
@@ -1318,7 +1322,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                           </div>
                         </div>
                       </div>
-                      
+                     
                       <div className="py-2">
                         <Link
                           to="/profile"
@@ -1363,7 +1367,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         hidden lg:block
       `}>
         <div className="h-full flex flex-col">
-          
+         
           {/* Logo dans la sidebar */}
           <div className={`p-4 border-b border-primary/20 ${!sidebarOpen && 'text-center'} bg-gradient-to-r from-primary/5 to-transparent`}>
             <div className={`flex items-center ${!sidebarOpen && 'justify-center'} gap-3`}>
@@ -1416,10 +1420,10 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
               const isComptaSection = section.name === 'COMPTABILITÉ & FINANCE'
               const isRHSection = section.name === 'RESSOURCES HUMAINES'
               const isStockSection = section.name === 'STOCK & LOGISTIQUE'
-              
+             
               // Compter les badges pour afficher un indicateur sur la section
               const totalBadges = visibleItems.reduce((sum, item) => sum + (item.badge || 0), 0)
-              
+             
               return (
                 <div key={idx} className="mb-1">
                   <button
@@ -1427,9 +1431,9 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                     className={`
                       w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200
                       ${!sidebarOpen && 'justify-center'}
-                      ${isOpen 
-                        ? isComptaSection ? 'bg-success/10 text-success' : 
-                          isRHSection ? 'bg-secondary/10 text-secondary' : 
+                      ${isOpen
+                        ? isComptaSection ? 'bg-success/10 text-success' :
+                          isRHSection ? 'bg-secondary/10 text-secondary' :
                           isStockSection ? 'bg-warning/10 text-warning' :
                           'bg-primary/10 text-primary'
                         : 'text-base-content/70 hover:bg-primary/5 hover:text-primary'
@@ -1453,11 +1457,11 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                       </>
                     )}
                   </button>
-                  
+                 
                   {sidebarOpen && isOpen && (
                     <div className={`ml-6 mt-2 space-y-1 border-l-2 pl-4 ${
-                      isComptaSection ? 'border-success' : 
-                      isRHSection ? 'border-secondary' : 
+                      isComptaSection ? 'border-success' :
+                      isRHSection ? 'border-secondary' :
                       isStockSection ? 'border-warning' :
                       'border-primary'
                     }`}>
@@ -1467,16 +1471,16 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                         const isExpenseItem = item.id === 'notes-frais'
                         const isTresorerieItem = item.id === 'tresorerie'
                         const isLotsItem = item.id === 'lots'
-                        
+                       
                         return (
                           <Link
                             key={item.id}
                             to={item.path}
                             className={`
                               flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-200
-                              ${isActive 
-                                ? isComptaSection ? 'bg-success text-success-content shadow-md' : 
-                                  isRHSection ? 'bg-secondary text-secondary-content shadow-md' : 
+                              ${isActive
+                                ? isComptaSection ? 'bg-success text-success-content shadow-md' :
+                                  isRHSection ? 'bg-secondary text-secondary-content shadow-md' :
                                   isStockSection ? 'bg-warning text-warning-content shadow-md' :
                                   'bg-primary text-primary-content shadow-md'
                                 : 'text-base-content/60 hover:bg-primary/10 hover:text-primary'
@@ -1565,7 +1569,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+             
               {agenceCourante && !isPDG && !isDRH && (
                 <div className="bg-primary-content/10 rounded-xl p-3">
                   <div className="flex items-center gap-2 mb-1">
@@ -1587,14 +1591,14 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                 const isRHSection = section.name === 'RESSOURCES HUMAINES'
                 const isStockSection = section.name === 'STOCK & LOGISTIQUE'
                 const totalBadges = visibleItems.reduce((sum, item) => sum + (item.badge || 0), 0)
-                
+               
                 return (
                   <div key={idx} className="mb-2">
                     <button
                       onClick={() => handleSectionToggle(section.name)}
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all ${
-                        isComptaSection ? 'hover:bg-success/10' : 
-                        isRHSection ? 'hover:bg-secondary/10' : 
+                        isComptaSection ? 'hover:bg-success/10' :
+                        isRHSection ? 'hover:bg-secondary/10' :
                         isStockSection ? 'hover:bg-warning/10' :
                         'hover:bg-primary/10'
                       }`}
@@ -1610,11 +1614,11 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                         {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
                     </button>
-                    
+                   
                     {isOpen && (
                       <div className={`ml-6 mt-2 space-y-1 border-l-2 pl-4 ${
-                        isComptaSection ? 'border-success' : 
-                        isRHSection ? 'border-secondary' : 
+                        isComptaSection ? 'border-success' :
+                        isRHSection ? 'border-secondary' :
                         isStockSection ? 'border-warning' :
                         'border-primary'
                       }`}>
@@ -1628,9 +1632,9 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                               onClick={() => setIsMobileMenuOpen(false)}
                               className={`
                                 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all
-                                ${isActive 
-                                  ? isComptaSection ? 'bg-success text-success-content' : 
-                                    isRHSection ? 'bg-secondary text-secondary-content' : 
+                                ${isActive
+                                  ? isComptaSection ? 'bg-success text-success-content' :
+                                    isRHSection ? 'bg-secondary text-secondary-content' :
                                     isStockSection ? 'bg-warning text-warning-content' :
                                     'bg-primary text-primary-content'
                                   : 'hover:bg-primary/10'

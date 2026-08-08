@@ -1,3 +1,5 @@
+// src/App.jsx
+
 import './App.css'
 import Register from './components/Register'
 import Login from './components/Login'
@@ -158,312 +160,267 @@ import TresorerieJournaliere from './components/tresorerie/TresorerieJournaliere
 import PriceHistory from './components/achats/PriceHistory'
 
 import Lots from './components/inventaire/Lots'
- 
+
+// ✅ IMPORTS FACTURES ET PAIEMENTS FOURNISSEURS
+import FacturesFournisseurs from './components/achats/FacturesFournisseurs'
+import FacturesFournisseurDetail from './components/achats/FacturesFournisseurDetail'
+import PaiementsFournisseurs from './components/achats/PaiementsFournisseurs'
+//import PaiementsFournisseurDetail from './components/achats/PaiementsFournisseurDetail'
+import PaiementsFournisseurForm from './components/achats/PaiementsFournisseurForm'
 
 import Bilan from './components/comptabilite/Bilan'
 
 import AuditLog from './components/audit/AuditLog'
 
-
-
-
-
 function App() {
  
   const location = useLocation()
-  // Correction : inverser la condition
   const noNavBar = location.pathname === "/" || location.pathname === "/register" || location.pathname.includes("password")
   
   return (
     <>
     {
       noNavBar ?
-      // Pas de Navbar pour login et register
       <Routes>
           <Route path="/register" element={<Register />} />
-         <Route path="/" element={<Login />} />
+          <Route path="/" element={<Login />} />
           <Route path="/request/password_reset" element={<PasswordResetRequest/>}/>
           <Route path="/password-reset/:token" element={<PasswordReset/>}/>
       </Routes>
       :
-      // Avec Navbar pour les autres routes
       <Navbar 
         content={
       <Routes>
             <Route element={<ProtectedRoute/>}> 
                 <Route path="/dashboard" element={<Dashboard />} />
-<Route path="/statistiques" element={<Statistiques />} />
-<Route path="/analyses" element={<Analyses />} />
+                <Route path="/statistiques" element={<Statistiques />} />
+                <Route path="/analyses" element={<Analyses />} />
 
+                <Route path="dashboard/comptabilite" element={<DashboardComptable />} />
 
+                <Route path="/plan-comptable" element={<PlanComptable />} />
+                <Route path="/plan-comptable/nouveau" element={<PlanComptableForm />} />
+                <Route path="/plan-comptable/:id/modifier" element={<PlanComptableForm />} />
 
+                <Route path="/journaux" element={<Journaux />} />
+                <Route path="/journaux/nouveau" element={<JournalForm />} />
+                <Route path="/journaux/:id/modifier" element={<JournalForm />} />
+                <Route path="/journaux/:id" element={<JournalDetail />} />
 
-<Route path="dashboard/comptabilite" element={<DashboardComptable />} />
+                <Route path="/ecritures" element={<Ecritures />} />
+                <Route path="/ecritures/nouveau" element={<EcritureForm />} />
+                <Route path="/ecritures/:id/modifier" element={<EcritureForm />} />
+                <Route path="/ecritures/:id" element={<EcritureDetail />} />
 
-<Route path="/plan-comptable" element={<PlanComptable />} />
-<Route path="/plan-comptable/nouveau" element={<PlanComptableForm />} />
-<Route path="/plan-comptable/:id/modifier" element={<PlanComptableForm />} />
+                <Route path="/balances" element={<Balances />} />
+                <Route path="/balances/nouveau" element={<BalanceForm />} />
+                <Route path="/balances/:id/modifier" element={<BalanceForm />} />
+                <Route path="/balances/:id" element={<BalanceDetail />} /> 
 
-<Route path="/journaux" element={<Journaux />} />
-<Route path="/journaux/nouveau" element={<JournalForm />} />
-<Route path="/journaux/:id/modifier" element={<JournalForm />} />
-<Route path="/journaux/:id" element={<JournalDetail />} />
+                <Route path="/factures-comptables" element={<FacturesComptables />} />
+                <Route path="/factures-comptables/nouveau" element={<FactureComptableForm />} />
+                <Route path="/factures-comptables/:id/modifier" element={<FactureComptableForm />} />
+                <Route path="/factures-comptables/:id" element={<FactureComptableForm />} />
 
+                <Route path="/reglements" element={<Reglements />} />
+                <Route path="/reglements/nouveau" element={<ReglementForm />} />
+                <Route path="/reglements/:id/modifier" element={<ReglementForm />} />
+                <Route path="/reglements/:id" element={<ReglementDetail />} />
 
-<Route path="/ecritures" element={<Ecritures />} />
-<Route path="/ecritures/nouveau" element={<EcritureForm />} />
-<Route path="/ecritures/:id/modifier" element={<EcritureForm />} />
-<Route path="/ecritures/:id" element={<EcritureDetail />} />
+                <Route path="/tresorerie/dashboard" element={<Tresorerie />} />
 
+                <Route path="/caisses" element={<Caisses />} />
+                <Route path="/caisses/nouveau" element={<CaissesForm />} />
+                <Route path="/caisses/:id" element={<CaissesDetail />} />
+                <Route path="/caisses/:id/edit" element={<CaissesForm />} />
 
+                <Route path="/comptes-bancaires" element={<ComptesBancaires />} />
+                <Route path="/comptes-bancaires/nouveau" element={<ComptesBancairesForm />} />
+                <Route path="/comptes-bancaires/:id" element={<ComptesBancairesDetail />} />
+                <Route path="/comptes-bancaires/:id/edit" element={<ComptesBancairesForm />} />
+                
+                <Route path="/mouvements-tresorerie" element={<MouvementsTresorerie />} />
+                <Route path="/mouvements/nouveau" element={<MouvementsTresorerieForm />} />
+                <Route path="/mouvements/:id" element={<MouvementsTresorerieDetail />} />
+                <Route path="/mouvements/:id/edit" element={<MouvementsTresorerieForm />} />
+                
+                <Route path="/frais" element={<FraisTresorerie />} />
+                <Route path="/frais/nouveau" element={<FraisTresorerieForm />} />
+                <Route path="/frais/:id" element={<FraisTresorerieDetail />} />
+                <Route path="/frais/:id/edit" element={<FraisTresorerieForm />} />
+                
+                <Route path="/previsions" element={<PrevisionsTresorerie />} />
+                <Route path="/previsions/nouveau" element={<PrevisionsTresorerieForm />} />
+                <Route path="/previsions/:id" element={<PrevisionsTresorerieDetail />} />
+                <Route path="/previsions/:id/edit" element={<PrevisionsTresorerieForm />} />
+                
+                <Route path="/rapprochements" element={<Rapprochements />} />
+                <Route path="/rapprochements/nouveau" element={<RapprochementsForm />} />
+                <Route path="/rapprochements/:id" element={<RapprochementsDetail />} />
+                <Route path="/rapprochements/:id/edit" element={<RapprochementsForm />} />
+                
+                <Route path="/tresorerie-journaliere" element={<TresorerieJournaliere />} />
 
-
-<Route path="/balances" element={<Balances />} />
-<Route path="/balances/nouveau" element={<BalanceForm />} />
-<Route path="/balances/:id/modifier" element={<BalanceForm />} />
-<Route path="/balances/:id" element={<BalanceDetail />} /> 
-
-
-<Route path="/factures-comptables" element={<FacturesComptables />} />
-<Route path="/factures-comptables/nouveau" element={<FactureComptableForm />} />
-<Route path="/factures-comptables/:id/modifier" element={<FactureComptableForm />} />
-<Route path="/factures-comptables/:id" element={<FactureComptableForm />} />
-
-
-<Route path="/reglements" element={<Reglements />} />
-<Route path="/reglements/nouveau" element={<ReglementForm />} />
-<Route path="/reglements/:id/modifier" element={<ReglementForm />} />
-<Route path="/reglements/:id" element={<ReglementDetail />} />
-
-<Route path="/tresorerie/dashboard" element={<Tresorerie />} />
-
-  // Caisses - CRUD complet
-          <Route path="/caisses" element={<Caisses />} />
-          <Route path="/caisses/nouveau" element={<CaissesForm />} />
-          <Route path="/caisses/:id" element={<CaissesDetail />} />
-          <Route path="/caisses/:id/edit" element={<CaissesForm />} />
-
-           // Comptes bancaires - CRUD complet
-          <Route path="/comptes-bancaires" element={<ComptesBancaires />} />
-          <Route path="/comptes-bancaires/nouveau" element={<ComptesBancairesForm />} />
-          <Route path="/comptes-bancaires/:id" element={<ComptesBancairesDetail />} />
-          <Route path="/comptes-bancaires/:id/edit" element={<ComptesBancairesForm />} />
-          
-          // Mouvements - CRUD complet
-          <Route path="/mouvements-tresorerie" element={<MouvementsTresorerie />} />
-          <Route path="/mouvements/nouveau" element={<MouvementsTresorerieForm />} />
-          <Route path="/mouvements/:id" element={<MouvementsTresorerieDetail />} />
-          <Route path="/mouvements/:id/edit" element={<MouvementsTresorerieForm />} />
-          
-          // Frais - CRUD complet
-          <Route path="/frais" element={<FraisTresorerie />} />
-          <Route path="/frais/nouveau" element={<FraisTresorerieForm />} />
-          <Route path="/frais/:id" element={<FraisTresorerieDetail />} />
-          <Route path="/frais/:id/edit" element={<FraisTresorerieForm />} />
-          
-          // Prévisions - CRUD complet
-          <Route path="/previsions" element={<PrevisionsTresorerie />} />
-          <Route path="/previsions/nouveau" element={<PrevisionsTresorerieForm />} />
-          <Route path="/previsions/:id" element={<PrevisionsTresorerieDetail />} />
-          <Route path="/previsions/:id/edit" element={<PrevisionsTresorerieForm />} />
-          
-          // Rapprochements - CRUD complet
-          <Route path="/rapprochements" element={<Rapprochements />} />
-          <Route path="/rapprochements/nouveau" element={<RapprochementsForm />} />
-          <Route path="/rapprochements/:id" element={<RapprochementsDetail />} />
-          <Route path="/rapprochements/:id/edit" element={<RapprochementsForm />} />
-          
-          // Trésorerie journalière - Lecture seule
-          <Route path="/tresorerie-journaliere" element={<TresorerieJournaliere />} />
-
-<Route path="/compte-resultat" element={<CompteResultat />} />
-<Route path="/bilan" element={<Bilan />} />
+                <Route path="/compte-resultat" element={<CompteResultat />} />
+                <Route path="/bilan" element={<Bilan />} />
             
                 <Route path="/home" element={<Home/>}/>
-               <Route path="/agences" element={<Agences/>}/>
-               <Route path="/creer-agence" element={<CreerAgence/>}/>
+                <Route path="/agences" element={<Agences/>}/>
+                <Route path="/creer-agence" element={<CreerAgence/>}/>
 
-               
-              <Route path="/units" element={<Units/>}/>
-               <Route path="/units/nouveau" element={<UnitForm />} />
-              <Route path="/units/:id/modifier" element={<UnitForm />} />
+                <Route path="/units" element={<Units/>}/>
+                <Route path="/units/nouveau" element={<UnitForm />} />
+                <Route path="/units/:id/modifier" element={<UnitForm />} />
 
-
-               {/* Marques */}
                 <Route path="/brands" element={<Brands />} />
                 <Route path="/brands/nouveau" element={<BrandForm />} />
                 <Route path="/brands/:id/modifier" element={<BrandForm />} /> 
 
-               {/* Variantes (si page dédiée)  */}
-               <Route path="/variants" element={<Variants />} />
-               <Route path="/variants/nouveau" element={<VariantForm />} />
-               <Route path="/variants/:id/modifier" element={<VariantForm />} />
+                <Route path="/variants" element={<Variants />} />
+                <Route path="/variants/nouveau" element={<VariantForm />} />
+                <Route path="/variants/:id/modifier" element={<VariantForm />} />
 
-                 {/* Catégories */}
-                 <Route path="/categories" element={<Categories />} />
-                 <Route path="/categories/nouveau" element={<CategoryForm />} />
+                <Route path="/categories" element={<Categories />} />
+                <Route path="/categories/nouveau" element={<CategoryForm />} />
                 <Route path="/categories/:id/modifier" element={<CategoryForm />} />
 
-<Route path="/price-history" element={<PriceHistory />} />
+                <Route path="/price-history" element={<PriceHistory />} />
 
-                   {/* Gestion des produits */}
-                        <Route path="/produits" element={<Products />} />
-                        <Route path="/produits/nouveau" element={<ProductForm />} />
-                        <Route path="/produits/:id" element={<ProductDetails />} />
-                        <Route path="/produits/:id/prix" element={<ProductPricingManager />} />
-                        <Route path="/produits/:id/modifier" element={<ProductForm />} />
-                      
+                <Route path="/produits" element={<Products />} />
+                <Route path="/produits/nouveau" element={<ProductForm />} />
+                <Route path="/produits/:id" element={<ProductDetails />} />
+                <Route path="/produits/:id/prix" element={<ProductPricingManager />} />
+                <Route path="/produits/:id/modifier" element={<ProductForm />} />
 
-  {/* Gestion des transfert */}
+                <Route path="/transferts" element={<Transferts />} />
+                <Route path="/transferts/nouveau" element={<TransfertForm />} />
+                <Route path="/transferts/:id" element={<TransfertDetail />} />
+                <Route path="/transferts/:id/pdf" element={<TransfertPdf />} />
 
-        <Route path="/transferts" element={<Transferts />} />
-        <Route path="/transferts/nouveau" element={<TransfertForm />} />
-        <Route path="/transferts/:id" element={<TransfertDetail />} />
-        <Route path="/transferts/:id/pdf" element={<TransfertPdf />} />
+                <Route path="/entrepots" element={<Entrepots />} />
+                <Route path="/entrepots/:id" element={<EntrepotDetail />} />
+                <Route path="/entrepots/nouveau" element={<EntrepotForm />} />
+                <Route path="/entrepots/:id/modifier" element={<EntrepotForm />} />
 
- {/* Gestion des entrepot */}
-<Route path="/entrepots" element={<Entrepots />} />
-<Route path="/entrepots/:id" element={<EntrepotDetail />} />
-<Route path="/entrepots/nouveau" element={<EntrepotForm />} />
-<Route path="/entrepots/:id/modifier" element={<EntrepotForm />} />
-{/* Gestion des MOUvements de stock */}
-<Route path="/mouvements-stock" element={<MouvementsStock />} />
-<Route path="/mouvements-stock/:id" element={<MouvementStockDetail />} />
+                <Route path="/mouvements-stock" element={<MouvementsStock />} />
+                <Route path="/mouvements-stock/:id" element={<MouvementStockDetail />} />
 
+                <Route path="/stocks/ajouter" element={<AddStockToWarehouse />} />
+                <Route path="/stocks" element={<Stocks />} />
+                <Route path="/stocks/:id" element={<StockDetail />} />
 
- {/* Gestion des stock */}
+                <Route path="/utilisateurs" element={<Utilisateurs />} />
+                <Route path="/utilisateurs/nouveau" element={<UtilisateurForm />} />
+                <Route path="/utilisateurs/:id/edit" element={<UtilisateurForm />} />
+                <Route path="/utilisateurs/:id" element={<UtilisateurDetail />} />
 
- <Route path="/stocks/ajouter" element={<AddStockToWarehouse />} />
-<Route path="/stocks" element={<Stocks />} />
-<Route path="/stocks/:id" element={<StockDetail />} />
+                <Route path="/fournisseurs" element={<Fournisseurs />} />
+                <Route path="/fournisseurs/nouveau" element={<FournisseurForm />} />
+                <Route path="/fournisseurs/:id/edit" element={<FournisseurForm />} />
+                <Route path="/fournisseurs/:id" element={<FournisseurDetail />} />
 
-          {/* Gestion des UTILISATEURS */}
-                        <Route path="/utilisateurs" element={<Utilisateurs />} />
-                        <Route path="/utilisateurs/nouveau" element={<UtilisateurForm />} />
-                        <Route path="/utilisateurs/:id/edit" element={<UtilisateurForm />} />
-                        <Route path="/utilisateurs/:id" element={<UtilisateurDetail />} />
-                          
+                <Route path="/lots" element={<Lots />} />
 
+                <Route path="/commandes-fournisseurs" element={<CommandesFournisseurs />} />
+                <Route path="/commandes-fournisseurs/nouveau" element={<CommandeFournisseurForm />} />
+                <Route path="/commandes-fournisseurs/:id/edit" element={<CommandeFournisseurForm />} />
+                <Route path="/commandes-fournisseurs/:id" element={<CommandeFournisseurDetail />} />
 
-                          
-                       {/* Gestion des Fourniseurs */}
-                      <Route path="/fournisseurs" element={<Fournisseurs />} />
-                       <Route path="/fournisseurs/nouveau" element={<FournisseurForm />} />
-                      <Route path="/fournisseurs/:id/edit" element={<FournisseurForm />} />
-                      <Route path="/fournisseurs/:id" element={<FournisseurDetail />} />
+                <Route path="/receptions" element={<Receptions />} />
+                <Route path="/receptions/nouveau" element={<ReceptionForm />} />
+                <Route path="/receptions/:id/edit" element={<ReceptionForm />} />
+                <Route path="/receptions/:id" element={<ReceptionDetail />} />
 
+                <Route path="/frais" element={<FraisList />} />
+                <Route path="/frais/nouveau" element={<FraisForm />} />
+                <Route path="/frais/:id" element={<FraisDetail />} />
+                <Route path="/frais/:id/modifier" element={<FraisForm />} />
 
+                {/* ✅ NOUVELLES ROUTES FACTURES FOURNISSEURS */}
+                <Route path="/factures-fournisseur" element={<FacturesFournisseurs />} />
+                <Route path="/factures-fournisseur/:id" element={<FacturesFournisseurDetail />} />
+            
 
-  <Route path="/lots" element={<Lots />} />
+                <Route path="/paiement-fournisseur" element={<PaiementsFournisseurs />} />
+              
+                <Route path="/paiement-fournisseur/nouveau" element={<PaiementsFournisseurForm />} />
+                <Route path="/paiement-fournisseur/:id/edit" element={<PaiementsFournisseurForm />} />
+                  
+                {/*   NOUVELLES ROUTES PAIEMENTS FOURNISSEURS
+                  <Route path="/paiement-fournisseur/:id" element={<PaiementsFournisseurDetail />} />
 
-  {/* Gestion des COMMADES */}
-                      <Route path="/commandes-fournisseurs" element={<CommandesFournisseurs />} />
-                      <Route path="/commandes-fournisseurs/nouveau" element={<CommandeFournisseurForm />} />
-                      <Route path="/commandes-fournisseurs/:id/edit" element={<CommandeFournisseurForm />} />
-                      <Route path="/commandes-fournisseurs/:id" element={<CommandeFournisseurDetail />} />
+*/}
+                <Route path="/departments" element={<Departments />} />
+                <Route path="/departments/new" element={<DepartmentForm />} />
+                <Route path="/departments/:id/edit" element={<DepartmentForm />} />
 
- {/* Gestion des RECEPTIOS */}
-<Route path="/receptions" element={<Receptions />} />
-<Route path="/receptions/nouveau" element={<ReceptionForm />} />
-<Route path="/receptions/:id/edit" element={<ReceptionForm />} />
-<Route path="/receptions/:id" element={<ReceptionDetail />} />
+                <Route path="/positions" element={<Positions />} />
+                <Route path="/positions/new" element={<PositionForm />} />
+                <Route path="/positions/:id/edit" element={<PositionForm />} />
+                <Route path="/positions/:id" element={<PositionDetail />} />
 
+                <Route path="/employees" element={<Employees />} />
+                <Route path="/employees/new" element={<EmployeeForm />} />
+                <Route path="/employees/:id/edit" element={<EmployeeForm />} />
+                <Route path="/employees/:id" element={<EmployeeDetail />} />
+                <Route path="/employees/:id/qr" element={<EmployeeQR />} />
 
- {/* Gestion des RECEPTIOS */}
+                <Route path="/attendance" element={<Attendance />} />
+                <Route path="/attendance/checkin" element={<AttendanceForm />} />
+                <Route path="/attendance/checkout" element={<AttendanceForm />} />
 
-<Route path="/frais" element={<FraisList />} />
-<Route path="/frais/nouveau" element={<FraisForm />} />
-<Route path="/frais/:id" element={<FraisDetail />} />
-<Route path="/frais/:id/modifier" element={<FraisForm />} />
+                <Route path="/leaves" element={<Leaves />} />
+                <Route path="/leaves/new" element={<LeaveForm />} />
+                <Route path="/leaves/calendar" element={<LeaveCalendar />} />
 
-    {/* Departments */}
-          <Route path="/departments" element={<Departments />} />
-<Route path="/departments/new" element={<DepartmentForm />} />
-<Route path="/departments/:id/edit" element={<DepartmentForm />} />
+                <Route path="/payroll" element={<Payroll />} />
+                <Route path="/payroll/new" element={<PayrollForm />} />
+                <Route path="/payroll/:id" element={<PayrollDetail />} />
+                <Route path="/payroll/:id/edit" element={<PayrollForm />} />
+                <Route path="/payroll/:id/slip" element={<PayrollSlip />} />
 
+                <Route path="/expenses" element={<ExpenseList />} />
+                <Route path="/expenses/new" element={<ExpenseForm />} />
+                <Route path="/expenses/:id" element={<ExpenseDetail />} />
 
-                       
-<Route path="/positions" element={<Positions />} />
-<Route path="/positions/new" element={<PositionForm />} />
-<Route path="/positions/:id/edit" element={<PositionForm />} />
-<Route path="/positions/:id" element={<PositionDetail />} />
+                <Route path="/recruitments" element={<Recruitments />} />
+                <Route path="/recruitments/new" element={<RecruitmentForm />} />
+                <Route path="/recruitments/:id/edit" element={<RecruitmentForm />} />
+                <Route path="/candidates" element={<Candidates />} />
+                <Route path="/performance" element={<PerformanceReviews />} />
+                <Route path="/documents" element={<Documents />} />
+                <Route path="/stats" element={<HRStats />} />
+                <Route path="/trainings" element={<Trainings />} />
 
+                <Route path="/dashboard/ventes" element={<SalesDashboard />} />
+                
+                <Route path="/clients" element={<ClientsList />} />
+                <Route path="/clients/nouveau" element={<ClientForm />} />
+                <Route path="/clients/:id" element={<ClientDetail />} />
+                <Route path="/clients/:id/modifier" element={<ClientForm />} />
 
-  {/* EMPLOYES  */}
-<Route path="/employees" element={<Employees />} />
-<Route path="/employees/new" element={<EmployeeForm />} />
-<Route path="/employees/:id/edit" element={<EmployeeForm />} />
-<Route path="/employees/:id" element={<EmployeeDetail />} />
-<Route path="/employees/:id/qr" element={<EmployeeQR />} />
+                <Route path="/ventes" element={<VentesList />} />
+                <Route path="/ventes/nouveau" element={<VenteForm />} />
+                <Route path="/ventes/:id" element={<VenteDetail />} />
+                <Route path="/point-de-vente" element={<PointDeVente />} />
 
+                <Route path="/factures" element={<FacturesList />} />
+                <Route path="/factures/nouveau" element={<FactureForm />} />
+                <Route path="/factures/:id" element={<FactureDetail />} />
+                <Route path="/factures/:id/modifier" element={<FactureForm />} />
 
+                <Route path="/paiements" element={<Paiements />} />
+                <Route path="/paiements/nouveau" element={<PaiementForm />} />
+                <Route path="/paiements/:id" element={<PaiementDetail />} />
+                <Route path="/paiements/:id/edit" element={<PaiementForm />} />
+                <Route path="/paiements/:id/pdf" element={<PaiementPdf />} />
 
-        <Route path="/attendance" element={<Attendance />} />
-<Route path="/attendance/checkin" element={<AttendanceForm />} />
-<Route path="/attendance/checkout" element={<AttendanceForm />} />
+                <Route path="/devis" element={<DevisList />} />
+                <Route path="/devis/nouveau" element={<DevisForm />} />
+                <Route path="/devis/:id" element={<DevisDetail />} />
+                <Route path="/devis/:id/edit" element={<DevisForm />} />
 
-
- {/* Retours */}
- <Route path="/leaves" element={<Leaves />} />
-        <Route path="/leaves/new" element={<LeaveForm />} />
-
-        <Route path="/leaves/calendar" element={<LeaveCalendar />} />
-
-
-   {/* PAIMET */}
-   <Route path="/payroll" element={<Payroll />} />
-        <Route path="/payroll/new" element={<PayrollForm />} />
-        <Route path="/payroll/:id" element={<PayrollDetail />} />
-        <Route path="/payroll/:id/edit" element={<PayrollForm />} />
-        <Route path="/payroll/:id/slip" element={<PayrollSlip />} />
-
-<Route path="/expenses" element={<ExpenseList />} />
-<Route path="/expenses/new" element={<ExpenseForm />} />
-<Route path="/expenses/:id" element={<ExpenseDetail />} />
-
-
-        // Routes
-<Route path="/recruitments" element={<Recruitments />} />
-<Route path="/recruitments/new" element={<RecruitmentForm />} />
-<Route path="/recruitments/:id/edit" element={<RecruitmentForm />} />
-<Route path="/candidates" element={<Candidates />} />
-<Route path="/performance" element={<PerformanceReviews />} />
-<Route path="/expenses" element={<ExpenseClaims />} />
-<Route path="/documents" element={<Documents />} />
-<Route path="/stats" element={<HRStats />} />
-<Route path="/trainings" element={<Trainings />} />
-
-                      <Route path="/dashboard/ventes" element={<SalesDashboard />} />
-                      
-<Route path="/clients" element={<ClientsList />} />
-<Route path="/clients/nouveau" element={<ClientForm />} />
-<Route path="/clients/:id" element={<ClientDetail />} />
-<Route path="/clients/:id/modifier" element={<ClientForm />} />
-
-
-<Route path="/ventes" element={<VentesList />} />
-<Route path="/ventes/nouveau" element={<VenteForm />} />
-<Route path="/ventes/:id" element={<VenteDetail />} />
-<Route path="/point-de-vente" element={<PointDeVente />} />
-
-          <Route path="/factures" element={<FacturesList />} />
-          <Route path="/factures/nouveau" element={<FactureForm />} />
-          <Route path="/factures/:id" element={<FactureDetail />} />
-          <Route path="/factures/:id/modifier" element={<FactureForm />} />
-
-<Route path="/paiements" element={<Paiements />} />
-<Route path="/paiements/nouveau" element={<PaiementForm />} />
-<Route path="/paiements/:id" element={<PaiementDetail />} />
-<Route path="/paiements/:id/edit" element={<PaiementForm />} />
-<Route path="/paiements/:id/pdf" element={<PaiementPdf />} />
-
-
-<Route path="/devis" element={<DevisList />} />
-<Route path="/devis/nouveau" element={<DevisForm />} />
-<Route path="/devis/:id" element={<DevisDetail />} />
-<Route path="/devis/:id/edit" element={<DevisForm />} />
-
- <Route path="/audit" element={<AuditLog />} />
+                <Route path="/audit" element={<AuditLog />} />
             </Route>
           </Routes>
         }
