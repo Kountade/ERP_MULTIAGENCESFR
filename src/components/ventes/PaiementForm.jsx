@@ -1,4 +1,5 @@
 // src/components/paiements/PaiementForm.jsx
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import AxiosInstance from '../AxiosInstance';
@@ -6,7 +7,7 @@ import {
   Save, X, ArrowLeft, Plus, Minus, Trash2, CreditCard,
   CheckCircle, AlertCircle, Loader2, Building2, 
   Package, DollarSign, FileText, User, Hash, Calendar,
-  Receipt, Phone, Mail
+  Receipt, Phone, Mail, Banknote, Building
 } from 'lucide-react';
 
 const PaiementForm = () => {
@@ -21,12 +22,22 @@ const PaiementForm = () => {
   const [selectedFacture, setSelectedFacture] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success', details: null });
   
+  // ✅ NOUVEAUX ÉTATS pour la trésorerie
+  const [caisses, setCaisses] = useState([]);
+  const [comptesBancaires, setComptesBancaires] = useState([]);
+  const [loadingDestinations, setLoadingDestinations] = useState(true);
+  
   // Champs du formulaire
   const [factureId, setFactureId] = useState('');
   const [montant, setMontant] = useState('');
   const [methode, setMethode] = useState('especes');
   const [referenceExterne, setReferenceExterne] = useState('');
   const [notes, setNotes] = useState('');
+  
+  // ✅ NOUVEAUX CHAMPS pour la destination
+  const [typeDestination, setTypeDestination] = useState('caisse'); // 'caisse' ou 'compte'
+  const [caisseId, setCaisseId] = useState('');
+  const [compteId, setCompteId] = useState('');
 
   // États de validation
   const [errors, setErrors] = useState({});
@@ -50,23 +61,35 @@ const PaiementForm = () => {
   // 1. Chargement des factures éligibles
   // ============================================================
   useEffect(() => {
-    const fetchFactures = async () => {
+    const fetchData = async () => {
       setLoadingFactures(true);
+      setLoadingDestinations(true);
       try {
-        const res = await AxiosInstance.get('/factures/?status__in=partially_paid,overdue,sent');
-        const facturesAvecReste = res.data.filter(f => (f.montant_restant || 0) > 0);
+        // Charger les factures
+        const facturesRes = await AxiosInstance.get('/factures/?status__in=partially_paid,overdue,sent');
+        const facturesAvecReste = facturesRes.data.filter(f => (f.montant_restant || 0) > 0);
         setFactures(facturesAvecReste);
+        
+        // ✅ Charger les caisses
+        const caissesRes = await AxiosInstance.get('/caisses/?is_active=true');
+        setCaisses(caissesRes.data);
+        
+        // ✅ Charger les comptes bancaires
+        const comptesRes = await AxiosInstance.get('/comptes-bancaires/?is_active=true');
+        setComptesBancaires(comptesRes.data);
+        
         if (isEditMode) {
           await fetchPaiement();
         }
       } catch (err) {
-        console.error('Erreur chargement factures', err);
-        showNotification('Impossible de charger les factures', 'error');
+        console.error('Erreur chargement données', err);
+        showNotification('Impossible de charger les données', 'error');
       } finally {
         setLoadingFactures(false);
+        setLoadingDestinations(false);
       }
     };
-    fetchFactures();
+    fetchData();
   }, [id]);
 
   // ============================================================
@@ -81,6 +104,16 @@ const PaiementForm = () => {
       setMethode(data.methode);
       setReferenceExterne(data.reference_externe || '');
       setNotes(data.notes || '');
+      
+      // ✅ Récupérer la destination
+      if (data.caisse) {
+        setTypeDestination('caisse');
+        setCaisseId(data.caisse.id);
+      } else if (data.compte_bancaire) {
+        setTypeDestination('compte');
+        setCompteId(data.compte_bancaire.id);
+      }
+      
       if (data.facture) {
         setSelectedFacture(data.facture);
       }
@@ -118,6 +151,17 @@ const PaiementForm = () => {
       setReferenceExterne(value);
     } else if (field === 'notes') {
       setNotes(value);
+    } else if (field === 'type_destination') {
+      setTypeDestination(value);
+      setCaisseId('');
+      setCompteId('');
+      if (errors.destination) setErrors(prev => ({ ...prev, destination: '' }));
+    } else if (field === 'caisse') {
+      setCaisseId(value);
+      if (errors.destination) setErrors(prev => ({ ...prev, destination: '' }));
+    } else if (field === 'compte') {
+      setCompteId(value);
+      if (errors.destination) setErrors(prev => ({ ...prev, destination: '' }));
     }
   };
 
@@ -129,6 +173,13 @@ const PaiementForm = () => {
     if (!factureId) newErrors.facture = 'Veuillez sélectionner une facture';
     if (!montant || parseFloat(montant) <= 0) newErrors.montant = 'Montant invalide';
     if (!methode) newErrors.methode = 'Choisissez une méthode';
+    
+    // ✅ Validation de la destination
+    if (typeDestination === 'caisse' && !caisseId) {
+      newErrors.destination = 'Veuillez sélectionner une caisse';
+    } else if (typeDestination === 'compte' && !compteId) {
+      newErrors.destination = 'Veuillez sélectionner un compte bancaire';
+    }
 
     if (selectedFacture && montant) {
       const montantValue = parseFloat(montant);
@@ -154,7 +205,10 @@ const PaiementForm = () => {
       montant: parseFloat(montant),
       methode: methode,
       reference_externe: referenceExterne,
-      notes: notes
+      notes: notes,
+      // ✅ Ajouter la destination
+      caisse: typeDestination === 'caisse' ? parseInt(caisseId) : null,
+      compte_bancaire: typeDestination === 'compte' ? parseInt(compteId) : null,
     };
 
     try {
@@ -174,6 +228,8 @@ const PaiementForm = () => {
       else if (errorData?.montant) errorMessage = errorData.montant[0];
       else if (errorData?.non_field_errors) errorMessage = errorData.non_field_errors[0];
       else if (errorData?.error) errorMessage = errorData.error;
+      else if (errorData?.caisse) errorMessage = errorData.caisse[0];
+      else if (errorData?.compte_bancaire) errorMessage = errorData.compte_bancaire[0];
       showNotification(errorMessage, 'error', errorData);
     } finally {
       setSubmitting(false);
@@ -323,6 +379,108 @@ const PaiementForm = () => {
                       Maximum : {formatPrice(selectedFacture.montant_restant)}
                     </span>
                   )}
+                </div>
+
+                {/* ✅ SECTION DESTINATION - NOUVEAU */}
+                <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                  <h4 className="font-semibold text-sm text-blue-700 mb-3 flex items-center gap-2">
+                    <Banknote className="w-4 h-4" />
+                    Destination du paiement <span className="text-error">*</span>
+                  </h4>
+                  
+                  {/* Type de destination */}
+                  <div className="form-control w-full mb-3">
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="type_destination"
+                          value="caisse"
+                          checked={typeDestination === 'caisse'}
+                          onChange={(e) => handleChange('type_destination', e.target.value)}
+                          className="radio radio-primary radio-sm"
+                          disabled={submitting}
+                        />
+                        <span className="text-sm">Caisse</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="type_destination"
+                          value="compte"
+                          checked={typeDestination === 'compte'}
+                          onChange={(e) => handleChange('type_destination', e.target.value)}
+                          className="radio radio-primary radio-sm"
+                          disabled={submitting}
+                        />
+                        <span className="text-sm">Compte bancaire</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Sélection de la caisse */}
+                  {typeDestination === 'caisse' && (
+                    <div className="form-control w-full">
+                      <label className="label">
+                        <span className="label-text font-medium flex items-center gap-2">
+                          <Building className="w-4 h-4 text-primary" />
+                          Caisse
+                        </span>
+                      </label>
+                      <select
+                        value={caisseId}
+                        onChange={(e) => handleChange('caisse', e.target.value)}
+                        className={`select select-bordered w-full ${errors.destination ? 'select-error' : ''}`}
+                        disabled={submitting || loadingDestinations}
+                      >
+                        <option value="">-- Choisir une caisse --</option>
+                        {caisses.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.nom} - Solde: {formatPrice(c.solde_actuel)}
+                          </option>
+                        ))}
+                      </select>
+                      {loadingDestinations && (
+                        <span className="text-info text-xs mt-1 flex items-center gap-1">
+                          <span className="loading loading-spinner loading-xs"></span>
+                          Chargement des caisses...
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Sélection du compte bancaire */}
+                  {typeDestination === 'compte' && (
+                    <div className="form-control w-full">
+                      <label className="label">
+                        <span className="label-text font-medium flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-primary" />
+                          Compte bancaire
+                        </span>
+                      </label>
+                      <select
+                        value={compteId}
+                        onChange={(e) => handleChange('compte', e.target.value)}
+                        className={`select select-bordered w-full ${errors.destination ? 'select-error' : ''}`}
+                        disabled={submitting || loadingDestinations}
+                      >
+                        <option value="">-- Choisir un compte --</option>
+                        {comptesBancaires.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.banque} - {c.nom} (Solde: {formatPrice(c.solde_actuel)})
+                          </option>
+                        ))}
+                      </select>
+                      {loadingDestinations && (
+                        <span className="text-info text-xs mt-1 flex items-center gap-1">
+                          <span className="loading loading-spinner loading-xs"></span>
+                          Chargement des comptes...
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
+                  {errors.destination && <span className="text-error text-xs mt-1">{errors.destination}</span>}
                 </div>
 
                 {/* Méthode de paiement */}

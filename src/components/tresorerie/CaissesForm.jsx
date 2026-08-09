@@ -19,6 +19,8 @@ const CaissesForm = () => {
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' })
   const [agences, setAgences] = useState([])
   const [users, setUsers] = useState([])
+  const [autresCaisses, setAutresCaisses] = useState([])
+  const [caisseOriginale, setCaisseOriginale] = useState(null)
 
   const [formData, setFormData] = useState({
     code: '',
@@ -56,19 +58,27 @@ const CaissesForm = () => {
         if (isEdit) {
           const caisseRes = await AxiosInstance.get(`/caisses/${id}/`)
           const data = caisseRes.data
+          setCaisseOriginale(data)
+          
           setFormData({
             code: data.code || '',
             nom: data.nom || '',
             type_caisse: data.type_caisse || 'principale',
             agence: data.agence || '',
             responsable: data.responsable || '',
-            solde_initial: data.solde_initial || 0,
-            seuil_min: data.seuil_min || 0,
-            seuil_max: data.seuil_max || 0,
+            solde_initial: parseFloat(data.solde_initial) || 0,
+            seuil_min: parseFloat(data.seuil_min) || 0,
+            seuil_max: parseFloat(data.seuil_max) || 0,
             is_active: data.is_active !== undefined ? data.is_active : true,
             is_default: data.is_default || false,
             description: data.description || ''
           })
+
+          // Charger les autres caisses de la même agence
+          if (data.agence) {
+            const caissesRes = await AxiosInstance.get(`/caisses/?agence=${data.agence}`)
+            setAutresCaisses(caissesRes.data.filter(c => c.id !== parseInt(id)) || [])
+          }
         }
       } catch (error) {
         console.error('Erreur chargement:', error)
@@ -81,12 +91,81 @@ const CaissesForm = () => {
     loadData()
   }, [id, isEdit])
 
+  // Recharger les autres caisses quand l'agence change
+  useEffect(() => {
+    const fetchAutresCaisses = async () => {
+      if (formData.agence && !isEdit) {
+        try {
+          const caissesRes = await AxiosInstance.get(`/caisses/?agence=${formData.agence}`)
+          setAutresCaisses(caissesRes.data || [])
+        } catch (error) {
+          console.error('Erreur chargement caisses:', error)
+        }
+      }
+    }
+    fetchAutresCaisses()
+  }, [formData.agence, isEdit])
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
+    
+    // ✅ Si on change l'agence, réinitialiser is_default si nécessaire
+    if (name === 'agence') {
+      const hasDefaultInNewAgence = autresCaisses.some(c => c.is_default === true)
+      setFormData(prev => ({
+        ...prev,
+        agence: value,
+        is_default: hasDefaultInNewAgence ? false : prev.is_default
+      }))
+      return
+    }
+
+    // ✅ Si on active/désactive is_default
+    if (name === 'is_default') {
+      // Si on coche "par défaut", on doit s'assurer qu'il n'y a pas de conflit
+      if (checked) {
+        // Désactiver is_default sur toutes les autres caisses de la même agence
+        setAutresCaisses(prev => 
+          prev.map(c => ({ ...c, is_default: false }))
+        )
+      }
+    }
+
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }))
+  }
+
+  // ✅ Vérifier si c'est la seule caisse active de l'agence
+  const estSeuleCaisseActive = () => {
+    if (!isEdit) return false
+    const autresActives = autresCaisses.filter(c => c.is_active === true)
+    return autresActives.length === 0 && formData.is_active === true
+  }
+
+  // ✅ Vérifier si c'est la seule caisse par défaut
+  const estSeuleCaisseParDefaut = () => {
+    if (!isEdit) return false
+    const autresParDefaut = autresCaisses.filter(c => c.is_default === true)
+    return autresParDefaut.length === 0 && formData.is_default === true
+  }
+
+  // ✅ Vérifier si on peut désactiver is_default
+  const peutDesactiverParDefaut = () => {
+    if (!isEdit) return true
+    // Si c'est la seule caisse par défaut, on ne peut pas la désactiver
+    if (estSeuleCaisseParDefaut()) return false
+    // Sinon, on peut la désactiver
+    return true
+  }
+
+  // ✅ Vérifier si on peut désactiver la caisse
+  const peutDesactiverCaisse = () => {
+    if (!isEdit) return true
+    // Si c'est la seule caisse active, on ne peut pas la désactiver
+    if (estSeuleCaisseActive()) return false
+    return true
   }
 
   const handleSubmit = async (e) => {
@@ -112,6 +191,14 @@ const CaissesForm = () => {
         return
       }
 
+      // ✅ Vérifier qu'il y a au moins une caisse par défaut
+      const hasDefault = formData.is_default || autresCaisses.some(c => c.is_default === true)
+      if (!hasDefault && formData.is_active) {
+        setError('⚠️ Attention : Il doit y avoir au moins une caisse par défaut active par agence')
+        setSaving(false)
+        return
+      }
+
       const dataToSend = {
         ...formData,
         solde_initial: parseFloat(formData.solde_initial) || 0,
@@ -122,19 +209,29 @@ const CaissesForm = () => {
       let response
       if (isEdit) {
         response = await AxiosInstance.put(`/caisses/${id}/`, dataToSend)
-        showNotification('Caisse modifiée avec succès', 'success')
+        showNotification('✅ Caisse modifiée avec succès', 'success')
       } else {
         response = await AxiosInstance.post('/caisses/', dataToSend)
-        showNotification('Caisse créée avec succès', 'success')
+        showNotification('✅ Caisse créée avec succès', 'success')
       }
 
-      setTimeout(() => navigate('/caisses'), 1000)
+      setTimeout(() => navigate('/caisses'), 1500)
 
     } catch (error) {
       console.error('Erreur sauvegarde:', error)
-      const msg = error.response?.data?.message || 'Erreur lors de la sauvegarde'
+      
+      let msg = 'Erreur lors de la sauvegarde'
+      if (error.response?.data) {
+        if (typeof error.response.data === 'object') {
+          const errors = Object.values(error.response.data).flat()
+          msg = errors.join(', ')
+        } else {
+          msg = error.response.data.message || error.response.data
+        }
+      }
+      
       setError(msg)
-      showNotification(msg, 'error')
+      showNotification('❌ ' + msg, 'error')
     } finally {
       setSaving(false)
     }
@@ -188,14 +285,32 @@ const CaissesForm = () => {
             </p>
           </div>
         </div>
+        
+        {/* Indicateur de statut par défaut */}
+        {isEdit && (
+          <div className="flex items-center gap-2">
+            {formData.is_default && (
+              <div className="badge badge-primary badge-lg gap-2">
+                <Shield className="w-4 h-4" />
+                Caisse par défaut
+              </div>
+            )}
+            {!formData.is_default && estSeuleCaisseActive() && (
+              <div className="badge badge-warning badge-lg gap-2">
+                <AlertCircle className="w-4 h-4" />
+                Seule caisse active
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Formulaire */}
       <form onSubmit={handleSubmit} className="bg-base-100 rounded-xl shadow-md border border-base-200 p-4 sm:p-6">
         {error && (
-          <div className="alert alert-error mb-4">
-            <AlertCircle className="w-4 h-4" />
-            <span>{error}</span>
+          <div className="alert alert-error mb-4 shadow-lg">
+            <AlertCircle className="w-5 h-5" />
+            <span className="font-medium">{error}</span>
           </div>
         )}
 
@@ -203,7 +318,10 @@ const CaissesForm = () => {
           {/* Code */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-medium">Code <span className="text-error">*</span></span>
+              <span className="label-text font-medium flex items-center gap-1">
+                <Coins className="w-4 h-4 text-primary" />
+                Code <span className="text-error">*</span>
+              </span>
             </label>
             <input
               type="text"
@@ -213,13 +331,20 @@ const CaissesForm = () => {
               placeholder="Ex: CAI-001"
               className="input input-bordered w-full"
               required
+              disabled={isEdit}
             />
+            {isEdit && (
+              <span className="text-xs text-base-content/50 mt-1">Le code ne peut pas être modifié</span>
+            )}
           </div>
 
           {/* Nom */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-medium">Nom <span className="text-error">*</span></span>
+              <span className="label-text font-medium flex items-center gap-1">
+                <Wallet className="w-4 h-4 text-primary" />
+                Nom <span className="text-error">*</span>
+              </span>
             </label>
             <input
               type="text"
@@ -243,17 +368,20 @@ const CaissesForm = () => {
               onChange={handleChange}
               className="select select-bordered w-full"
             >
-              <option value="principale">Principale</option>
-              <option value="secondaire">Secondaire</option>
-              <option value="mobile">Mobile</option>
-              <option value="virtuelle">Virtuelle</option>
+              <option value="principale">🏦 Principale</option>
+              <option value="secondaire">🏢 Secondaire</option>
+              <option value="mobile">📱 Mobile</option>
+              <option value="virtuelle">💻 Virtuelle</option>
             </select>
           </div>
 
           {/* Agence */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-medium">Agence <span className="text-error">*</span></span>
+              <span className="label-text font-medium flex items-center gap-1">
+                <Building2 className="w-4 h-4 text-primary" />
+                Agence <span className="text-error">*</span>
+              </span>
             </label>
             <select
               name="agence"
@@ -261,18 +389,25 @@ const CaissesForm = () => {
               onChange={handleChange}
               className="select select-bordered w-full"
               required
+              disabled={isEdit}
             >
               <option value="">Sélectionner une agence</option>
               {agences.map(agence => (
                 <option key={agence.id} value={agence.id}>{agence.nom}</option>
               ))}
             </select>
+            {isEdit && (
+              <span className="text-xs text-base-content/50 mt-1">L'agence ne peut pas être modifiée</span>
+            )}
           </div>
 
           {/* Responsable */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-medium">Responsable</span>
+              <span className="label-text font-medium flex items-center gap-1">
+                <User className="w-4 h-4 text-primary" />
+                Responsable
+              </span>
             </label>
             <select
               name="responsable"
@@ -282,7 +417,9 @@ const CaissesForm = () => {
             >
               <option value="">Sélectionner un responsable</option>
               {users.map(user => (
-                <option key={user.id} value={user.id}>{user.email}</option>
+                <option key={user.id} value={user.id}>
+                  {user.first_name} {user.last_name} ({user.email})
+                </option>
               ))}
             </select>
           </div>
@@ -290,7 +427,10 @@ const CaissesForm = () => {
           {/* Solde initial */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-medium">Solde initial</span>
+              <span className="label-text font-medium flex items-center gap-1">
+                <DollarSign className="w-4 h-4 text-primary" />
+                Solde initial
+              </span>
             </label>
             <input
               type="number"
@@ -300,13 +440,16 @@ const CaissesForm = () => {
               placeholder="0"
               className="input input-bordered w-full"
               step="0.01"
+              min="0"
             />
           </div>
 
           {/* Seuil min */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-medium">Seuil minimum</span>
+              <span className="label-text font-medium flex items-center gap-1">
+                ⬇️ Seuil minimum
+              </span>
             </label>
             <input
               type="number"
@@ -316,13 +459,19 @@ const CaissesForm = () => {
               placeholder="0"
               className="input input-bordered w-full"
               step="0.01"
+              min="0"
             />
+            <span className="text-xs text-base-content/50 mt-1">
+              Alerte si le solde descend en dessous
+            </span>
           </div>
 
           {/* Seuil max */}
           <div className="form-control">
             <label className="label">
-              <span className="label-text font-medium">Seuil maximum</span>
+              <span className="label-text font-medium flex items-center gap-1">
+                ⬆️ Seuil maximum
+              </span>
             </label>
             <input
               type="number"
@@ -332,31 +481,70 @@ const CaissesForm = () => {
               placeholder="0"
               className="input input-bordered w-full"
               step="0.01"
+              min="0"
             />
+            <span className="text-xs text-base-content/50 mt-1">
+              Alerte si le solde dépasse ce seuil
+            </span>
           </div>
 
           {/* Options */}
           <div className="form-control col-span-1 md:col-span-2">
-            <div className="flex flex-wrap gap-4 mt-2">
-              <label className="label cursor-pointer gap-2">
+            <div className="flex flex-wrap gap-6 mt-2 p-4 bg-base-200/50 rounded-xl">
+              <label className="label cursor-pointer gap-3">
                 <input
                   type="checkbox"
                   name="is_active"
                   checked={formData.is_active}
                   onChange={handleChange}
                   className="checkbox checkbox-primary"
+                  disabled={!peutDesactiverCaisse()}
                 />
-                <span className="label-text">Caisse active</span>
+                <div>
+                  <span className="label-text font-medium">Caisse active</span>
+                  {!peutDesactiverCaisse() && (
+                    <p className="text-xs text-warning">
+                      ⚠️ Seule caisse active - ne peut pas être désactivée
+                    </p>
+                  )}
+                </div>
               </label>
-              <label className="label cursor-pointer gap-2">
+
+              <label className="label cursor-pointer gap-3">
                 <input
                   type="checkbox"
                   name="is_default"
                   checked={formData.is_default}
                   onChange={handleChange}
                   className="checkbox checkbox-primary"
+                  disabled={!peutDesactiverParDefaut()}
                 />
-                <span className="label-text">Caisse par défaut</span>
+                <div>
+                  <span className="label-text font-medium flex items-center gap-1">
+                    <Shield className="w-4 h-4 text-primary" />
+                    Caisse par défaut
+                  </span>
+                  {!peutDesactiverParDefaut() && (
+                    <p className="text-xs text-warning">
+                      ⚠️ Seule caisse par défaut - ne peut pas être désactivée
+                    </p>
+                  )}
+                  {formData.is_default && (
+                    <p className="text-xs text-success">
+                      ✅ Utilisée par défaut pour les paiements
+                    </p>
+                  )}
+                  {!formData.is_default && autresCaisses.some(c => c.is_default === true) && (
+                    <p className="text-xs text-info">
+                      ℹ️ Une autre caisse est déjà définie comme par défaut
+                    </p>
+                  )}
+                  {!formData.is_default && !autresCaisses.some(c => c.is_default === true) && formData.is_active && (
+                    <p className="text-xs text-warning">
+                      ⚠️ Aucune caisse par défaut - cochez cette option si c'est la seule caisse active
+                    </p>
+                  )}
+                </div>
               </label>
             </div>
           </div>
@@ -376,6 +564,35 @@ const CaissesForm = () => {
             />
           </div>
         </div>
+
+        {/* Résumé des caisses de l'agence */}
+        {formData.agence && (autresCaisses.length > 0 || isEdit) && (
+          <div className="mt-6 p-4 bg-base-200/30 rounded-xl border border-base-200">
+            <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary" />
+              Caisses de cette agence
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {isEdit && (
+                <div className={`badge badge-lg ${formData.is_active ? 'badge-primary' : 'badge-ghost'}`}>
+                  {formData.nom} {formData.is_default && '⭐'} {!formData.is_active && '(inactive)'}
+                  <span className="ml-1 text-xs opacity-50">(en cours)</span>
+                </div>
+              )}
+              {autresCaisses.map(c => (
+                <div key={c.id} className={`badge badge-lg ${c.is_active ? 'badge-secondary' : 'badge-ghost'}`}>
+                  {c.nom} {c.is_default && '⭐'} {!c.is_active && '(inactive)'}
+                </div>
+              ))}
+              {autresCaisses.length === 0 && !isEdit && (
+                <span className="text-xs text-base-content/50">Aucune autre caisse dans cette agence</span>
+              )}
+            </div>
+            <p className="text-xs text-base-content/50 mt-2">
+              ⭐ = Caisse par défaut
+            </p>
+          </div>
+        )}
 
         {/* Boutons */}
         <div className="flex flex-wrap gap-3 mt-6 pt-4 border-t border-base-200">
@@ -399,8 +616,36 @@ const CaissesForm = () => {
             <X className="w-4 h-4" />
             Annuler
           </button>
+          {isEdit && formData.is_active && (
+            <button
+              type="button"
+              className="btn btn-error btn-outline gap-2 ml-auto"
+              onClick={() => {
+                if (window.confirm(`⚠️ Êtes-vous sûr de vouloir désactiver la caisse "${formData.nom}" ?\n\nSi c'est la seule caisse active, cette action sera refusée.`)) {
+                  setFormData(prev => ({
+                    ...prev,
+                    is_active: false
+                  }))
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+              Désactiver
+            </button>
+          )}
         </div>
       </form>
+
+      {/* Style pour l'animation */}
+      <style>{`
+        @keyframes slideDown {
+          from { transform: translateY(-20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out;
+        }
+      `}</style>
     </div>
   )
 }
