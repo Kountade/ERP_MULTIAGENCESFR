@@ -1,4 +1,5 @@
 // src/components/achats/ReceptionDetail.jsx
+
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import AxiosInstance from '../AxiosInstance'
@@ -6,8 +7,15 @@ import {
   ArrowLeft, Edit, Printer, Download, CheckCircle, XCircle,
   Package, Truck, DollarSign, Calendar, Building2, 
   FileText, AlertCircle, Receipt, Users, Clock,
-  MapPin, Phone, Mail, Hash, Tag, Box, X
+  MapPin, Phone, Mail, Hash, Tag, Box, X,
+  Loader2
 } from 'lucide-react'
+
+// Import du composant PDF
+import ReceptionRecu from './ReceptionRecu'
+
+// Import dynamique de pdf
+let pdfModule = null;
 
 const ReceptionDetail = () => {
   const navigate = useNavigate()
@@ -17,21 +25,53 @@ const ReceptionDetail = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' })
+  const [pdfReady, setPdfReady] = useState(false)
+  const [pdfGenerating, setPdfGenerating] = useState(false)
+
+  // Charger les modules PDF
+  useEffect(() => {
+    const loadPDFModules = async () => {
+      try {
+        const renderer = await import('@react-pdf/renderer');
+        pdfModule = renderer;
+        setPdfReady(true);
+        console.log('✅ Modules PDF chargés avec succès');
+      } catch (error) {
+        console.warn('⚠️ Modules PDF non disponibles:', error.message);
+        setPdfReady(false);
+      }
+    };
+    loadPDFModules();
+  }, []);
 
   const formatCurrency = (amount) => {
-    if (!amount) return '0 FCFA'
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount)
+    if (!amount && amount !== 0) return '0 FCFA'
+    try {
+      const num = typeof amount === 'string' ? parseFloat(amount) : amount
+      if (isNaN(num) || num === 0) return '0 FCFA'
+      return new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'XOF',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(num)
+    } catch {
+      return '0 FCFA'
+    }
   }
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'
     try {
-      return new Date(dateString).toLocaleDateString('fr-FR', {
+      let date
+      if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = dateString.split('-').map(Number)
+        date = new Date(year, month - 1, day)
+      } else {
+        date = new Date(dateString)
+      }
+      if (isNaN(date.getTime())) return 'N/A'
+      return date.toLocaleDateString('fr-FR', {
         day: '2-digit',
         month: 'long',
         year: 'numeric'
@@ -44,7 +84,9 @@ const ReceptionDetail = () => {
   const formatDateTime = (dateString) => {
     if (!dateString) return 'N/A'
     try {
-      return new Date(dateString).toLocaleDateString('fr-FR', {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return 'N/A'
+      return date.toLocaleDateString('fr-FR', {
         day: '2-digit',
         month: 'long',
         year: 'numeric',
@@ -53,6 +95,57 @@ const ReceptionDetail = () => {
       })
     } catch {
       return 'N/A'
+    }
+  }
+
+  // 📄 Télécharger le PDF du reçu de réception
+  const handleDownloadReceipt = async () => {
+    if (!reception) {
+      showNotification('Aucune réception à télécharger', 'error')
+      return
+    }
+
+    if (!pdfReady || !pdfModule) {
+      showNotification('Module PDF non disponible. Veuillez installer @react-pdf/renderer', 'error')
+      return
+    }
+
+    setPdfGenerating(true)
+    
+    try {
+      // Récupérer les données complètes si nécessaire
+      let receiptData = reception
+      if (!reception.items || reception.items.length === 0) {
+        const response = await AxiosInstance.get(`/purchase-receipts/${reception.id}/`)
+        receiptData = response.data
+      }
+      
+      // Vérifier que les données sont valides
+      if (!receiptData.items || receiptData.items.length === 0) {
+        throw new Error('Aucun article trouvé dans la réception')
+      }
+
+      const blob = await pdfModule.pdf(<ReceptionRecu reception={receiptData} />).toBlob()
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('Le PDF généré est vide')
+      }
+      
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `recu_reception_${receiptData.receipt_number || receiptData.id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      showNotification('Reçu PDF téléchargé avec succès', 'success')
+    } catch (error) {
+      console.error('Erreur téléchargement PDF:', error)
+      showNotification(`Erreur: ${error.message}`, 'error')
+    } finally {
+      setPdfGenerating(false)
     }
   }
 
@@ -67,7 +160,6 @@ const ReceptionDetail = () => {
         return
       }
       
-      // Essayer plusieurs endpoints
       let response
       try {
         response = await AxiosInstance.get(`/purchase-receipts/${id}/`)
@@ -81,7 +173,6 @@ const ReceptionDetail = () => {
       
       const data = response.data
       
-      // S'assurer que les champs nécessaires existent
       const formattedData = {
         ...data,
         total_value: data.total_value || 0,
@@ -156,7 +247,7 @@ const ReceptionDetail = () => {
       {/* Notification Toast */}
       {notification.show && (
         <div className="fixed top-16 right-3 sm:right-6 z-50 animate-slide-in">
-          <div className={`alert ${notification.type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg`}>
+          <div className={`alert ${notification.type === 'success' ? 'alert-success' : notification.type === 'warning' ? 'alert-warning' : 'alert-error'} shadow-lg`}>
             {notification.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
             <span>{notification.message}</span>
             <button onClick={() => setNotification({ ...notification, show: false })} className="btn btn-sm btn-ghost">✕</button>
@@ -173,9 +264,35 @@ const ReceptionDetail = () => {
           </Link>
           <div className="flex flex-wrap gap-2">
             <button onClick={handlePrint} className="btn btn-sm btn-outline gap-1"><Printer className="w-4 h-4" /> Imprimer</button>
-            <button className="btn btn-sm btn-outline gap-1"><Download className="w-4 h-4" /> Exporter</button>
+            
+            {/* 📄 Bouton Télécharger PDF */}
+            <button
+              className={`btn btn-sm gap-1 ${pdfReady && !pdfGenerating ? 'btn-info' : 'btn-ghost opacity-50 cursor-not-allowed'}`}
+              onClick={handleDownloadReceipt}
+              disabled={!pdfReady || pdfGenerating}
+            >
+              {pdfGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Génération...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Reçu PDF
+                </>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Indicateur PDF */}
+        {!pdfReady && (
+          <div className="alert alert-warning shadow-lg text-sm mb-4">
+            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>Module PDF non disponible. Pour activer le téléchargement, installez @react-pdf/renderer</span>
+          </div>
+        )}
 
         {/* En-tête */}
         <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl shadow-lg mb-6 overflow-hidden">
@@ -312,8 +429,8 @@ const ReceptionDetail = () => {
                           <CheckCircle className="w-3 h-3" /> Accepté
                         </div>
                       )}
-                     </td>
-                   </tr>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
               <tfoot className="bg-base-100 border-t-2">
@@ -344,7 +461,7 @@ const ReceptionDetail = () => {
                     <th className="text-right">Montant</th>
                     <th>N° référence</th>
                     <th>Document</th>
-                   </tr>
+                  </tr>
                 </thead>
                 <tbody>
                   {reception.costs.map((cost, idx) => (

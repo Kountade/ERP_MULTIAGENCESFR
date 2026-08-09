@@ -161,9 +161,9 @@ const styles = StyleSheet.create({
   },
   colNum: { width: '8%' },
   colProduct: { width: '35%' },
-  colQty: { width: '15%', textAlign: 'center' },
+  colQty: { width: '12%', textAlign: 'center' },
   colPrice: { width: '20%', textAlign: 'right' },
-  colTotal: { width: '22%', textAlign: 'right' },
+  colTotal: { width: '25%', textAlign: 'right' },
   colText: {
     fontSize: 9,
     color: '#424242',
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   },
 });
 
-// Formatage
+// ⭐ Formatage FCFA (identique à ReceptionsListePDF)
 const formatXOF = (amount) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '0 FCFA';
   let num = typeof amount === 'string' ? parseFloat(amount.replace(/,/g, '')) : amount;
@@ -267,13 +267,69 @@ const formatXOF = (amount) => {
   return `${formatted} FCFA`;
 };
 
-const getAmount = (item) => {
+// ⭐ Fonction pour extraire le prix unitaire (CORRIGÉE - comme dans ReceptionsListePDF)
+const getUnitPrice = (item) => {
   if (!item) return 0;
-  let amount = item.total || item.amount || item.unit_price * item.quantity || 0;
-  if (typeof amount === 'string') {
-    amount = parseFloat(amount.replace(/,/g, ''));
+  
+  // ⭐ Les données sont directement dans l'item, pas dans order_item
+  let price = item.unit_price || 
+              item.price || 
+              item.order_item?.unit_price || 
+              item.order_item?.price || 
+              0;
+  
+  if (typeof price === 'string') {
+    price = parseFloat(price.replace(/,/g, ''));
   }
-  return isNaN(amount) ? 0 : amount;
+  
+  return isNaN(price) ? 0 : price;
+};
+
+// ⭐ Fonction pour extraire la quantité (CORRIGÉE)
+const getQuantity = (item) => {
+  if (!item) return 0;
+  
+  // ⭐ Les données sont directement dans l'item
+  let qty = item.quantity || 
+            item.qty || 
+            item.order_item?.quantity || 
+            0;
+  
+  if (typeof qty === 'string') {
+    qty = parseFloat(qty.replace(/,/g, ''));
+  }
+  
+  return isNaN(qty) ? 0 : qty;
+};
+
+// ⭐ Fonction pour extraire le nom du produit (CORRIGÉE)
+const getProductName = (item) => {
+  if (!item) return 'N/A';
+  
+  // ⭐ Les données sont directement dans l'item
+  return item.product_name || 
+         item.name ||
+         item.order_item?.product?.name || 
+         item.product?.name || 
+         'N/A';
+};
+
+// ⭐ Fonction pour extraire la référence (CORRIGÉE)
+const getProductReference = (item) => {
+  if (!item) return '-';
+  
+  return item.product_reference || 
+         item.reference ||
+         item.order_item?.product?.reference || 
+         item.product?.reference || 
+         '-';
+};
+
+// ⭐ Fonction pour calculer le total d'une ligne
+const getLineTotal = (item) => {
+  const qty = getQuantity(item);
+  const price = getUnitPrice(item);
+  return qty * price;
 };
 
 const formatDate = (dateString) => {
@@ -302,8 +358,25 @@ const ReceptionRecu = ({ reception }) => {
   const data = reception || {};
   const items = data.items || [];
 
-  // Calcul des totaux
-  const totalValue = items.reduce((sum, item) => sum + getAmount(item), 0);
+  // ⭐ Calcul des totaux
+  let totalValue = 0;
+  const itemsWithDetails = items.map(item => {
+    const qty = getQuantity(item);
+    const price = getUnitPrice(item);
+    const total = qty * price;
+    totalValue += total;
+    
+    return {
+      ...item,
+      quantity: qty,
+      unit_price: price,
+      total: total,
+      product_name: getProductName(item),
+      product_reference: getProductReference(item)
+    };
+  });
+
+  // ⭐ Utiliser les valeurs du réception (comme dans ReceptionsListePDF)
   const totalCosts = parseFloat(data.total_costs) || 0;
   const grandTotal = totalValue + totalCosts;
 
@@ -338,15 +411,15 @@ const ReceptionRecu = ({ reception }) => {
         <View style={styles.infoGrid}>
           <View style={styles.infoCol}>
             <Text style={styles.infoLabel}>N° Réception</Text>
-            <Text style={styles.infoValue}>{data.receipt_number}</Text>
+            <Text style={styles.infoValue}>{data.receipt_number || '-'}</Text>
           </View>
           <View style={styles.infoCol}>
             <Text style={styles.infoLabel}>Commande</Text>
-            <Text style={styles.infoValue}>{data.order_number || data.purchase_order?.order_number}</Text>
+            <Text style={styles.infoValue}>{data.order_number || data.purchase_order?.order_number || '-'}</Text>
           </View>
           <View style={styles.infoCol}>
             <Text style={styles.infoLabel}>Fournisseur</Text>
-            <Text style={styles.infoValue}>{data.supplier_name || data.purchase_order?.supplier?.company_name}</Text>
+            <Text style={styles.infoValue}>{data.supplier_name || data.purchase_order?.supplier?.company_name || '-'}</Text>
           </View>
           <View style={styles.infoCol}>
             <Text style={styles.infoLabel}>Date</Text>
@@ -365,22 +438,26 @@ const ReceptionRecu = ({ reception }) => {
           <Text style={[styles.tableHeaderText, styles.colTotal]}>Total</Text>
         </View>
 
-        {items.map((item, index) => {
-          const productName = item.order_item?.product?.name || item.product_name || 'N/A';
-          const quantity = item.quantity || 0;
-          const unitPrice = parseFloat(item.order_item?.unit_price) || parseFloat(item.unit_price) || 0;
-          const total = getAmount(item);
-          
-          return (
+        {itemsWithDetails.length === 0 ? (
+          <View style={{ padding: 20, alignItems: 'center' }}>
+            <Text style={{ fontSize: 10, color: '#78909c' }}>Aucun article dans cette réception</Text>
+          </View>
+        ) : (
+          itemsWithDetails.map((item, index) => (
             <View key={index} style={index % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
               <Text style={[styles.colText, styles.colNum]}>{index + 1}</Text>
-              <Text style={[styles.colText, styles.colProduct]}>{productName}</Text>
-              <Text style={[styles.colText, styles.colQty]}>{quantity}</Text>
-              <Text style={[styles.colText, styles.colPrice]}>{formatXOF(unitPrice)}</Text>
-              <Text style={[styles.colTextBold, styles.colTotal]}>{formatXOF(total)}</Text>
+              <Text style={[styles.colText, styles.colProduct]}>
+                {item.product_name}
+                {item.product_reference && item.product_reference !== '-' && (
+                  <Text style={{ fontSize: 7, color: '#78909c' }}> ({item.product_reference})</Text>
+                )}
+              </Text>
+              <Text style={[styles.colText, styles.colQty]}>{item.quantity}</Text>
+              <Text style={[styles.colText, styles.colPrice]}>{formatXOF(item.unit_price)}</Text>
+              <Text style={[styles.colTextBold, styles.colTotal]}>{formatXOF(item.total)}</Text>
             </View>
-          );
-        })}
+          ))
+        )}
 
         {/* Totaux */}
         <View style={styles.totalBox}>
@@ -393,7 +470,7 @@ const ReceptionRecu = ({ reception }) => {
             <Text style={{ fontSize: 9, fontWeight: 'bold', color: '#ff9800' }}>{formatXOF(totalCosts)}</Text>
           </View>
           <View style={[styles.totalRow, { borderTopWidth: 1, borderTopColor: '#e0e0e0', paddingTop: 4, marginTop: 4 }]}>
-            <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#1a237e' }}>TOTAL</Text>
+            <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#1a237e' }}>TOTAL RÉCEPTION</Text>
             <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#1a237e' }}>{formatXOF(grandTotal)}</Text>
           </View>
         </View>
