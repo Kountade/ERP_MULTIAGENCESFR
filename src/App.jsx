@@ -165,7 +165,7 @@ import Lots from './components/inventaire/Lots'
 import FacturesFournisseurs from './components/achats/FacturesFournisseurs'
 import FacturesFournisseurDetail from './components/achats/FacturesFournisseurDetail'
 import PaiementsFournisseurs from './components/achats/PaiementsFournisseurs'
-//import PaiementsFournisseurDetail from './components/achats/PaiementsFournisseurDetail'
+import PaiementsFournisseurDetail from './components/achats/PaiementsFournisseurDetail'
 import PaiementsFournisseurForm from './components/achats/PaiementsFournisseurForm'
 
 import Bilan from './components/comptabilite/Bilan'
@@ -342,12 +342,11 @@ function App() {
             
 
                 <Route path="/paiement-fournisseur" element={<PaiementsFournisseurs />} />
-              
                 <Route path="/paiement-fournisseur/nouveau" element={<PaiementsFournisseurForm />} />
                 <Route path="/paiement-fournisseur/:id/edit" element={<PaiementsFournisseurForm />} />
-                  
+                    <Route path="/paiement-fournisseur/:id" element={<PaiementsFournisseurDetail />} />
                 {/*   NOUVELLES ROUTES PAIEMENTS FOURNISSEURS
-                  <Route path="/paiement-fournisseur/:id" element={<PaiementsFournisseurDetail />} />
+                
 
 */}
                 <Route path="/departments" element={<Departments />} />

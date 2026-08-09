@@ -1,5 +1,6 @@
 // src/components/achats/Receptions.jsx
-import React, { useEffect, useState } from 'react'
+
+import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import AxiosInstance from '../AxiosInstance'
 import {
@@ -30,8 +31,17 @@ import {
   CheckSquare,
   Receipt,
   TrendingUp,
-  Users
+  Users,
+  Download,
+  FileSearch
 } from 'lucide-react'
+
+// Imports des composants PDF
+const ReceptionRecu = React.lazy(() => import('./ReceptionRecu'));
+const ReceptionsListePDF = React.lazy(() => import('./ReceptionsListePDF'));
+
+// Import dynamique de pdf
+let pdfModule = null;
 
 const Receptions = () => {
   const navigate = useNavigate()
@@ -50,6 +60,8 @@ const Receptions = () => {
   const [sortDirection, setSortDirection] = useState('desc')
   const [showFilters, setShowFilters] = useState(false)
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
+  const [pdfLoading, setPdfLoading] = useState({})
+  const [pdfReady, setPdfReady] = useState(false)
   const [stats, setStats] = useState({
     total: 0,
     totalValue: 0,
@@ -57,6 +69,22 @@ const Receptions = () => {
     thisMonth: 0,
     avgValue: 0
   })
+
+  // Charger les modules PDF
+  useEffect(() => {
+    const loadPDFModules = async () => {
+      try {
+        const renderer = await import('@react-pdf/renderer');
+        pdfModule = renderer;
+        setPdfReady(true);
+        console.log('✅ Modules PDF chargés avec succès');
+      } catch (error) {
+        console.warn('⚠️ Modules PDF non disponibles:', error.message);
+        setPdfReady(false);
+      }
+    };
+    loadPDFModules();
+  }, []);
 
   const fetchData = async () => {
     setLoading(true)
@@ -83,7 +111,7 @@ const Receptions = () => {
       const receipts = response.data || []
       setReceptions(receipts)
       
-      // Calculer les statistiques à partir des données reçues
+      // Calculer les statistiques
       const total = receipts.length
       const totalValue = receipts.reduce((sum, r) => sum + (parseFloat(r.total_value) || 0), 0)
       const totalCosts = receipts.reduce((sum, r) => sum + (parseFloat(r.total_costs) || 0), 0)
@@ -136,6 +164,130 @@ const Receptions = () => {
     }
   }
 
+  // 📄 Télécharger le PDF d'une réception individuelle
+  const handleReceiptPDF = async (reception) => {
+    if (!pdfReady || !pdfModule) {
+      showNotification('Module PDF non disponible', 'error');
+      return;
+    }
+
+    setPdfLoading(prev => ({ ...prev, [reception.id]: true }));
+    try {
+      // Récupérer les données complètes si nécessaire
+      let receiptData = reception;
+      if (!reception.items || reception.items.length === 0) {
+        const response = await AxiosInstance.get(`/purchase-receipts/${reception.id}/`);
+        receiptData = response.data;
+      }
+      
+      const { default: ReceiptComponent } = await import('./ReceptionRecu');
+      const blob = await pdfModule.pdf(<ReceiptComponent reception={receiptData} />).toBlob();
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `recu_reception_${receiptData.receipt_number || receiptData.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showNotification('Reçu PDF téléchargé avec succès', 'success');
+    } catch (error) {
+      console.error('Erreur téléchargement PDF:', error);
+      showNotification('Erreur lors du téléchargement du PDF', 'error');
+    } finally {
+      setPdfLoading(prev => ({ ...prev, [reception.id]: false }));
+    }
+  };
+
+  // 📄 Télécharger le PDF de la liste des réceptions filtrées
+  const handleDownloadFilteredReceptions = async () => {
+    const filteredReceptions = getFilteredReceptions();
+    
+    if (filteredReceptions.length === 0) {
+      showNotification('Aucune réception à télécharger', 'warning');
+      return;
+    }
+
+    if (!pdfReady || !pdfModule) {
+      showNotification('Module PDF non disponible', 'error');
+      return;
+    }
+
+    setPdfLoading(prev => ({ ...prev, ['filtered_list']: true }));
+    try {
+      const filters = {
+        searchTerm: searchTerm || '',
+        dateRange: dateRange
+      };
+
+      const { default: ListePDF } = await import('./ReceptionsListePDF');
+      const blob = await pdfModule.pdf(
+        <ListePDF receptions={filteredReceptions} filters={filters} />
+      ).toBlob();
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      let fileName = 'receptions';
+      if (searchTerm) {
+        fileName += `_recherche_${searchTerm.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_')}`;
+      }
+      if (dateRange.start && dateRange.end) {
+        fileName += `_${dateRange.start}_au_${dateRange.end}`;
+      }
+      fileName += `_${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showNotification(`PDF téléchargé (${filteredReceptions.length} réceptions)`, 'success');
+    } catch (error) {
+      console.error('Erreur téléchargement PDF:', error);
+      showNotification('Erreur lors du téléchargement du PDF', 'error');
+    } finally {
+      setPdfLoading(prev => ({ ...prev, ['filtered_list']: false }));
+    }
+  };
+
+  // Obtenir les réceptions filtrées
+  const getFilteredReceptions = () => {
+    let filtered = receptions;
+
+    // Filtre par recherche
+    filtered = filtered.filter(receipt => {
+      const search = searchTerm.toLowerCase()
+      const receiptNumber = (receipt.receipt_number || '').toLowerCase()
+      const orderNumber = (receipt.order_number || receipt.purchase_order?.order_number || '').toLowerCase()
+      const supplierName = (receipt.supplier_name || receipt.purchase_order?.supplier?.company_name || '').toLowerCase()
+      
+      return receiptNumber.includes(search) || orderNumber.includes(search) || supplierName.includes(search)
+    })
+
+    // Filtre par date
+    filtered = filtered.filter(receipt => {
+      let matchesDate = true
+      if (dateRange.start) {
+        const receiptDate = new Date(receipt.receipt_date)
+        const startDate = new Date(dateRange.start)
+        matchesDate = matchesDate && receiptDate >= startDate
+      }
+      if (dateRange.end) {
+        const receiptDate = new Date(receipt.receipt_date)
+        const endDate = new Date(dateRange.end)
+        matchesDate = matchesDate && receiptDate <= endDate
+      }
+      return matchesDate
+    });
+
+    return filtered;
+  };
+
   const formatCurrency = (amount) => {
     if (!amount) return '0 FCFA'
     return new Intl.NumberFormat('fr-FR', {
@@ -160,29 +312,8 @@ const Receptions = () => {
   }
 
   // Filtrage et tri
-  const filteredAndSortedReceipts = React.useMemo(() => {
-    let filtered = receptions.filter(receipt => {
-      const search = searchTerm.toLowerCase()
-      const receiptNumber = (receipt.receipt_number || '').toLowerCase()
-      const orderNumber = (receipt.order_number || receipt.purchase_order?.order_number || '').toLowerCase()
-      const supplierName = (receipt.supplier_name || receipt.purchase_order?.supplier?.company_name || '').toLowerCase()
-      
-      const matchesSearch = receiptNumber.includes(search) || orderNumber.includes(search) || supplierName.includes(search)
-      
-      let matchesDate = true
-      if (dateRange.start) {
-        const receiptDate = new Date(receipt.receipt_date)
-        const startDate = new Date(dateRange.start)
-        matchesDate = matchesDate && receiptDate >= startDate
-      }
-      if (dateRange.end) {
-        const receiptDate = new Date(receipt.receipt_date)
-        const endDate = new Date(dateRange.end)
-        matchesDate = matchesDate && receiptDate <= endDate
-      }
-      
-      return matchesSearch && matchesDate
-    })
+  const filteredAndSortedReceipts = useMemo(() => {
+    const filtered = getFilteredReceptions();
 
     filtered.sort((a, b) => {
       let aVal = a[sortField] || ''
@@ -227,6 +358,10 @@ const Receptions = () => {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // Vérifier si des filtres sont actifs
+  const hasActiveFilters = searchTerm || dateRange.start || dateRange.end;
+  const filteredCount = filteredAndSortedReceipts.length;
 
   if (loading) {
     return (
@@ -277,11 +412,29 @@ const Receptions = () => {
             Réceptions
           </h1>
           <p className="text-xs sm:text-sm text-base-content/60 mt-1">
-            Gérez vos réceptions de marchandises ({stats.total} au total)
+            {filteredCount} réception(s) · {formatCurrency(
+              filteredAndSortedReceipts.reduce((sum, r) => sum + (parseFloat(r.total_value) || 0) + (parseFloat(r.total_costs) || 0), 0)
+            )} total
           </p>
         </div>
         
         <div className="flex flex-wrap gap-2 sm:gap-3">
+          {/* 📄 Bouton PDF de la liste */}
+          {filteredCount > 0 && (
+            <button
+              className={`btn btn-sm sm:btn-md gap-1 sm:gap-2 ${hasActiveFilters ? 'btn-info' : 'btn-outline'}`}
+              onClick={handleDownloadFilteredReceptions}
+              disabled={!pdfReady || pdfLoading['filtered_list']}
+            >
+              {pdfLoading['filtered_list'] ? (
+                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+              ) : (
+                <FileSearch className="w-3 h-3 sm:w-4 sm:h-4" />
+              )}
+              <span className="hidden xs:inline">PDF {hasActiveFilters ? 'résultats' : 'tous'}</span>
+            </button>
+          )}
+          
           <button onClick={fetchData} className="btn btn-sm sm:btn-md btn-outline gap-1 sm:gap-2">
             <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden xs:inline">Actualiser</span>
@@ -293,65 +446,87 @@ const Receptions = () => {
         </div>
       </div>
 
+      {/* Indicateur PDF */}
+      {!pdfReady && (
+        <div className="alert alert-warning shadow-lg text-sm">
+          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span>Module PDF non disponible - Installation en cours...</span>
+        </div>
+      )}
+
       {/* Cartes statistiques */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
         <div className="stat bg-base-100 rounded-xl shadow-md border border-base-200 p-2 sm:p-3 lg:p-4">
           <div className="stat-figure text-primary"><Receipt className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" /></div>
           <div className="stat-title text-xs sm:text-sm font-semibold">Total</div>
-          <div className="stat-value text-lg sm:text-2xl lg:text-3xl font-black">{stats.total}</div>
+          <div className="stat-value text-lg sm:text-2xl lg:text-3xl font-black">{filteredCount}</div>
         </div>
         
         <div className="stat bg-base-100 rounded-xl shadow-md border border-base-200 p-2 sm:p-3 lg:p-4">
           <div className="stat-figure text-success"><DollarSign className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" /></div>
           <div className="stat-title text-xs sm:text-sm font-semibold">Valeur totale</div>
-          <div className="stat-value text-xs sm:text-sm lg:text-base font-black truncate">{formatCurrency(stats.totalValue)}</div>
+          <div className="stat-value text-xs sm:text-sm lg:text-base font-black truncate">
+            {formatCurrency(filteredAndSortedReceipts.reduce((sum, r) => sum + (parseFloat(r.total_value) || 0), 0))}
+          </div>
         </div>
         
         <div className="stat bg-base-100 rounded-xl shadow-md border border-base-200 p-2 sm:p-3 lg:p-4">
           <div className="stat-figure text-warning"><Truck className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" /></div>
           <div className="stat-title text-xs sm:text-sm font-semibold">Frais totaux</div>
-          <div className="stat-value text-xs sm:text-sm lg:text-base font-black truncate">{formatCurrency(stats.totalCosts)}</div>
+          <div className="stat-value text-xs sm:text-sm lg:text-base font-black truncate">
+            {formatCurrency(filteredAndSortedReceipts.reduce((sum, r) => sum + (parseFloat(r.total_costs) || 0), 0))}
+          </div>
         </div>
         
         <div className="stat bg-base-100 rounded-xl shadow-md border border-base-200 p-2 sm:p-3 lg:p-4">
           <div className="stat-figure text-info"><Calendar className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" /></div>
           <div className="stat-title text-xs sm:text-sm font-semibold">Ce mois-ci</div>
-          <div className="stat-value text-lg sm:text-2xl lg:text-3xl font-black">{stats.thisMonth}</div>
+          <div className="stat-value text-lg sm:text-2xl lg:text-3xl font-black">
+            {filteredAndSortedReceipts.filter(r => {
+              const date = new Date(r.receipt_date)
+              const now = new Date()
+              return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+            }).length}
+          </div>
         </div>
         
         <div className="stat bg-base-100 rounded-xl shadow-md border border-base-200 p-2 sm:p-3 lg:p-4">
           <div className="stat-figure text-secondary"><TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" /></div>
           <div className="stat-title text-xs sm:text-sm font-semibold">Valeur moyenne</div>
-          <div className="stat-value text-xs sm:text-sm lg:text-base font-black truncate">{formatCurrency(stats.avgValue)}</div>
+          <div className="stat-value text-xs sm:text-sm lg:text-base font-black truncate">
+            {formatCurrency(filteredCount > 0 ? 
+              filteredAndSortedReceipts.reduce((sum, r) => sum + (parseFloat(r.total_value) || 0), 0) / filteredCount : 0)}
+          </div>
         </div>
       </div>
 
       {/* Filtres et recherche */}
       <div className="bg-base-100 rounded-xl shadow-md border border-base-200 p-3 sm:p-4 lg:p-6">
         <div className="flex flex-col gap-3">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
-              <input
-                type="text"
-                placeholder="Rechercher par numéro de réception, commande ou fournisseur..."
-                className="input input-bordered w-full pl-9 text-sm"
-                value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
-              />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
+                <input
+                  type="text"
+                  placeholder="Rechercher par numéro de réception, commande ou fournisseur..."
+                  className="input input-bordered w-full pl-9 text-sm"
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1) }}
+                />
+              </div>
             </div>
+            <button onClick={() => setShowFilters(!showFilters)} className="btn btn-outline btn-sm sm:hidden gap-2">
+              <Filter className="w-4 h-4" /> Filtres {showFilters ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            </button>
           </div>
           
-          <button onClick={() => setShowFilters(!showFilters)} className="btn btn-outline btn-sm sm:hidden gap-2">
-            <Filter className="w-4 h-4" /> Filtres {showFilters ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-          </button>
-          
-          <div className={`${showFilters ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row gap-3`}>
+          <div className={`${showFilters ? 'flex' : 'hidden'} sm:flex flex-col sm:flex-row gap-3 items-center`}>
             <div className="flex gap-2">
               <input type="date" value={dateRange.start} onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))} className="input input-bordered text-sm w-36" placeholder="Date début" />
               <input type="date" value={dateRange.end} onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))} className="input input-bordered text-sm w-36" placeholder="Date fin" />
             </div>
-            <button onClick={() => { setDateRange({ start: '', end: '' }); setSearchTerm(''); setCurrentPage(1) }} className="btn btn-outline gap-2">
+            <button onClick={() => { setDateRange({ start: '', end: '' }); setSearchTerm(''); setCurrentPage(1) }} className="btn btn-outline btn-sm gap-2">
               <Filter className="w-4 h-4" /> Réinitialiser
             </button>
             <div className="join ml-auto">
@@ -369,10 +544,14 @@ const Receptions = () => {
           <div className="p-8 sm:p-12 text-center">
             <Package className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 text-base-content/30" />
             <p className="text-lg sm:text-xl font-semibold text-base-content/50">Aucune réception trouvée</p>
-            <p className="text-sm sm:text-base text-base-content/40 mt-2">Commencez par créer votre première réception</p>
-            <button className="btn btn-primary mt-6 gap-2" onClick={() => navigate('/receptions/nouveau')}>
-              <Plus className="w-4 h-4" /> Nouvelle réception
-            </button>
+            <p className="text-sm sm:text-base text-base-content/40 mt-2">
+              {hasActiveFilters ? 'Aucune réception ne correspond à vos critères' : 'Commencez par créer votre première réception'}
+            </p>
+            {!hasActiveFilters && (
+              <button className="btn btn-primary mt-6 gap-2" onClick={() => navigate('/receptions/nouveau')}>
+                <Plus className="w-4 h-4" /> Nouvelle réception
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -407,6 +586,21 @@ const Receptions = () => {
                           <button onClick={() => navigate(`/receptions/${reception.id}`)} className="btn btn-ghost btn-xs sm:btn-sm" title="Détails">
                             <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                           </button>
+                          
+                          {/* 📄 Bouton Reçu PDF */}
+                          <button
+                            className={`btn btn-ghost btn-xs sm:btn-sm ${pdfReady ? 'text-success' : 'opacity-30'}`}
+                            title={pdfReady ? "Télécharger le reçu PDF" : "PDF non disponible"}
+                            onClick={() => handleReceiptPDF(reception)}
+                            disabled={!pdfReady || pdfLoading[reception.id]}
+                          >
+                            {pdfLoading[reception.id] ? (
+                              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                            ) : (
+                              <Download className="w-3 h-3 sm:w-4 sm:h-4" />
+                            )}
+                          </button>
+                          
                           <button onClick={() => { setReceptionToDelete(reception); setShowDeleteModal(true) }} className="btn btn-ghost btn-xs sm:btn-sm text-error" title="Supprimer">
                             <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                           </button>
@@ -456,6 +650,37 @@ const Receptions = () => {
             )}
           </>
         )}
+      </div>
+
+      {/* Légende des actions */}
+      <div className="mt-4 p-3 bg-base-100 rounded-xl shadow-sm border border-base-200">
+        <div className="flex flex-wrap items-center gap-4 text-xs text-base-content/60">
+          <span className="font-medium">Actions:</span>
+          <div className="flex items-center gap-1">
+            <Eye className="w-3 h-3" />
+            <span>Détails</span>
+          </div>
+          <div className="flex items-center gap-1 text-success">
+            <Download className="w-3 h-3" />
+            <span>Reçu PDF</span>
+          </div>
+          <div className="flex items-center gap-1 text-info">
+            <FileSearch className="w-3 h-3" />
+            <span>PDF liste</span>
+          </div>
+          {hasActiveFilters && (
+            <div className="flex items-center gap-1 text-primary font-medium">
+              <Filter className="w-3 h-3" />
+              <span>Filtres actifs</span>
+            </div>
+          )}
+          {!pdfReady && (
+            <div className="flex items-center gap-1 text-warning">
+              <AlertCircle className="w-3 h-3" />
+              <span>PDF non disponible</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal Suppression */}

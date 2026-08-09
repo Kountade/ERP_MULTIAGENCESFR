@@ -1,6 +1,6 @@
 // src/components/sales/DevisPDF.jsx
 import jsPDF from 'jspdf';
-import logoSvg from '../../assets/logo.svg';
+import logo from '../../assets/logo.svg';
 
 /**
  * Génère un PDF de devis professionnel (sans TVA)

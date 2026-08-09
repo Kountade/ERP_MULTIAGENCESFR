@@ -23,12 +23,59 @@ import {
   RefreshCw,
   Clock,
   User,
-  Hash,
   Check,
   XCircle,
   Eye,
-  FileCheck
+  FileCheck,
+  X
 } from 'lucide-react'
+
+// Importer le composant PDF directement
+import PaiementFournisseurRecu from './PaiementsFournisseurRecu'
+
+// Service de gestion des PDF
+const PDFService = {
+  async generateBlob(paymentData) {
+    try {
+      const { pdf } = await import('@react-pdf/renderer')
+      
+      const doc = <PaiementFournisseurRecu paiement={paymentData} />
+      
+      const blob = await pdf(doc).toBlob()
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('Le PDF généré est vide')
+      }
+      
+      return blob
+    } catch (error) {
+      console.error('Erreur PDFService.generateBlob:', error)
+      throw new Error(`Erreur génération PDF: ${error.message}`)
+    }
+  },
+
+  async download(paymentData, filename) {
+    try {
+      const blob = await this.generateBlob(paymentData)
+      
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename || `recu_paiement_${paymentData.payment_number || paymentData.id}.pdf`
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+      
+      return true
+    } catch (error) {
+      console.error('Erreur PDFService.download:', error)
+      throw error
+    }
+  }
+}
 
 const PaiementsFournisseurDetail = () => {
   const navigate = useNavigate()
@@ -39,6 +86,22 @@ const PaiementsFournisseurDetail = () => {
   const [error, setError] = useState(null)
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' })
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [pdfGenerating, setPdfGenerating] = useState(false)
+  const [pdfReady, setPdfReady] = useState(false)
+
+  // Vérifier la disponibilité du PDF
+  useEffect(() => {
+    const checkPDF = async () => {
+      try {
+        await import('@react-pdf/renderer')
+        setPdfReady(true)
+      } catch (err) {
+        console.warn('PDF module non disponible:', err)
+        setPdfReady(false)
+      }
+    }
+    checkPDF()
+  }, [])
 
   // Configuration des méthodes de paiement
   const methodConfig = {
@@ -59,19 +122,33 @@ const PaiementsFournisseurDetail = () => {
   }
 
   const formatCurrency = (amount) => {
-    if (!amount) return '0 FCFA'
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount)
+    if (!amount && amount !== 0) return '0 FCFA'
+    try {
+      const num = typeof amount === 'string' ? parseFloat(amount) : amount
+      if (isNaN(num) || num === 0) return '0 FCFA'
+      return new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'XOF',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(num)
+    } catch {
+      return '0 FCFA'
+    }
   }
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A'
     try {
-      return new Date(dateString).toLocaleDateString('fr-FR', {
+      let date
+      if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = dateString.split('-').map(Number)
+        date = new Date(year, month - 1, day)
+      } else {
+        date = new Date(dateString)
+      }
+      if (isNaN(date.getTime())) return 'N/A'
+      return date.toLocaleDateString('fr-FR', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric'
@@ -84,7 +161,9 @@ const PaiementsFournisseurDetail = () => {
   const formatDateTime = (dateString) => {
     if (!dateString) return 'N/A'
     try {
-      return new Date(dateString).toLocaleString('fr-FR', {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return 'N/A'
+      return date.toLocaleString('fr-FR', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
@@ -132,6 +211,7 @@ const PaiementsFournisseurDetail = () => {
       if (!token) {
         setError('Veuillez vous connecter')
         setLoading(false)
+        navigate('/login')
         return
       }
 
@@ -140,7 +220,25 @@ const PaiementsFournisseurDetail = () => {
 
     } catch (error) {
       console.error('Erreur chargement paiement:', error)
-      setError('Erreur de chargement du paiement')
+      
+      if (error.response) {
+        const status = error.response.status
+        if (status === 401) {
+          setError('Session expirée. Veuillez vous reconnecter.')
+          navigate('/login')
+        } else if (status === 403) {
+          setError('Vous n\'avez pas les droits pour accéder à ce paiement.')
+        } else if (status === 404) {
+          setError('Paiement non trouvé.')
+        } else {
+          setError(`Erreur serveur (${status}): ${error.response.data?.message || 'Contactez le support'}`)
+        }
+      } else if (error.request) {
+        setError('Impossible de contacter le serveur. Vérifiez votre connexion internet.')
+      } else {
+        setError('Une erreur inattendue est survenue.')
+      }
+      
       showNotification('Erreur de chargement du paiement', 'error')
     } finally {
       setLoading(false)
@@ -156,7 +254,7 @@ const PaiementsFournisseurDetail = () => {
     try {
       await AxiosInstance.delete(`/paiement-fournisseur/${id}/`)
       showNotification('Paiement supprimé avec succès', 'success')
-      setTimeout(() => navigate('/paiements-fournisseurs'), 1500)
+      setTimeout(() => navigate('/paiement-fournisseur'), 1500)
     } catch (error) {
       console.error('Erreur suppression:', error)
       showNotification('Erreur lors de la suppression', 'error')
@@ -170,12 +268,57 @@ const PaiementsFournisseurDetail = () => {
     window.print()
   }
 
-  // Télécharger le reçu
-  const handleDownload = async () => {
+  // Télécharger le reçu PDF
+  const handleDownloadReceipt = async () => {
+    if (!paiement) {
+      showNotification('Aucun paiement à télécharger', 'error')
+      return
+    }
+
+    if (paiement.status !== 'completed') {
+      showNotification('Seuls les paiements terminés peuvent être téléchargés', 'warning')
+      return
+    }
+
+    if (!pdfReady) {
+      showNotification('Module PDF non disponible. Veuillez installer @react-pdf/renderer', 'error')
+      return
+    }
+
+    setPdfGenerating(true)
+    
     try {
-      showNotification('Reçu téléchargé avec succès', 'success')
+      let paymentData = paiement
+      if (!paiement.invoice) {
+        const response = await AxiosInstance.get(`/paiement-fournisseur/${paiement.id}/`)
+        paymentData = response.data
+      }
+
+      if (!paymentData.amount || !paymentData.payment_method) {
+        throw new Error('Données de paiement incomplètes')
+      }
+
+      await PDFService.download(
+        paymentData,
+        `recu_paiement_${paymentData.payment_number || paymentData.id}.pdf`
+      )
+
+      showNotification('Reçu PDF téléchargé avec succès', 'success')
     } catch (error) {
-      showNotification('Erreur lors du téléchargement', 'error')
+      console.error('Erreur téléchargement PDF:', error)
+      
+      let errorMessage = 'Erreur lors du téléchargement du reçu'
+      if (error.message.includes('incomplet')) {
+        errorMessage = 'Données de paiement incomplètes'
+      } else if (error.message.includes('vide')) {
+        errorMessage = 'Le PDF généré est vide'
+      } else {
+        errorMessage = `Erreur: ${error.message}`
+      }
+      
+      showNotification(errorMessage, 'error')
+    } finally {
+      setPdfGenerating(false)
     }
   }
 
@@ -183,7 +326,7 @@ const PaiementsFournisseurDetail = () => {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)] bg-base-200">
         <div className="text-center space-y-4">
-          <div className="loading loading-spinner loading-lg text-primary w-16 h-16"></div>
+          <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto" />
           <p className="text-xl font-semibold text-base-content/70 animate-pulse">
             Chargement du paiement...
           </p>
@@ -210,6 +353,7 @@ const PaiementsFournisseurDetail = () => {
 
   const canDelete = paiement.status === 'pending' || paiement.status === 'processing'
   const canEdit = paiement.status !== 'completed' && paiement.status !== 'cancelled'
+  const canDownload = paiement.status === 'completed'
 
   return (
     <div className="space-y-4 sm:space-y-6 p-3 sm:p-4 lg:p-6 bg-base-200 min-h-screen">
@@ -217,15 +361,17 @@ const PaiementsFournisseurDetail = () => {
       {/* Notification */}
       {notification.show && (
         <div className="fixed top-16 right-3 sm:right-6 z-50 animate-slideDown">
-          <div className={`alert ${notification.type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg text-sm sm:text-base`}>
+          <div className={`alert ${notification.type === 'success' ? 'alert-success' : notification.type === 'warning' ? 'alert-warning' : 'alert-error'} shadow-lg text-sm sm:text-base max-w-sm`}>
             {notification.type === 'success' ? (
-              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            ) : notification.type === 'warning' ? (
+              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
             )}
-            <span className="font-semibold">{notification.message}</span>
+            <span className="font-semibold text-sm">{notification.message}</span>
             <button 
-              className="btn btn-ghost btn-xs btn-circle"
+              className="btn btn-ghost btn-xs btn-circle flex-shrink-0"
               onClick={() => setNotification({ ...notification, show: false })}
             >
               <X className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -246,30 +392,49 @@ const PaiementsFournisseurDetail = () => {
         </div>
         
         <div className="flex flex-wrap gap-2 sm:gap-3">
-          <Link to="/paiements-fournisseurs" className="btn btn-sm sm:btn-md btn-outline gap-1 sm:gap-2">
+          <Link to="/paiement-fournisseur" className="btn btn-sm sm:btn-md btn-outline gap-1 sm:gap-2">
             <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4" /> Retour
           </Link>
+          
           <button
             onClick={handlePrint}
             className="btn btn-sm sm:btn-md btn-outline gap-1 sm:gap-2"
           >
             <Printer className="w-3 h-3 sm:w-4 sm:h-4" /> Imprimer
           </button>
+          
+          {/* Bouton Télécharger PDF */}
           <button
-            onClick={handleDownload}
-            className="btn btn-sm sm:btn-md btn-outline gap-1 sm:gap-2 text-info"
-            disabled={paiement.status !== 'completed'}
+            onClick={handleDownloadReceipt}
+            className={`btn btn-sm sm:btn-md gap-1 sm:gap-2 ${
+              canDownload && pdfReady && !pdfGenerating
+                ? 'btn-info'
+                : 'btn-ghost opacity-50 cursor-not-allowed'
+            }`}
+            disabled={!canDownload || !pdfReady || pdfGenerating}
           >
-            <Download className="w-3 h-3 sm:w-4 sm:h-4" /> Reçu
+            {pdfGenerating ? (
+              <>
+                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                Génération...
+              </>
+            ) : (
+              <>
+                <Download className="w-3 h-3 sm:w-4 sm:h-4" />
+                Reçu
+              </>
+            )}
           </button>
+
           {canEdit && (
             <Link
-              to={`/paiements-fournisseurs/${id}/edit`}
+              to={`/paiement-fournisseur/${id}/edit`}
               className="btn btn-sm sm:btn-md btn-primary gap-1 sm:gap-2 shadow-lg hover:shadow-xl transition-all"
             >
               <Edit className="w-3 h-3 sm:w-4 sm:h-4" /> Modifier
             </Link>
           )}
+          
           {canDelete && (
             <button
               onClick={() => setShowDeleteModal(true)}
@@ -280,6 +445,19 @@ const PaiementsFournisseurDetail = () => {
           )}
         </div>
       </div>
+
+      {/* Indicateur d'état PDF */}
+      {!pdfReady && (
+        <div className="alert alert-warning shadow-lg text-sm">
+          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+          <span>
+            Module PDF non disponible. Pour activer les téléchargements PDF, installez 
+            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">
+              @react-pdf/renderer
+            </code>
+          </span>
+        </div>
+      )}
 
       {/* Carte résumé */}
       <div className="bg-base-100 rounded-xl shadow-xl border border-base-200 overflow-hidden">
@@ -504,7 +682,7 @@ const PaiementsFournisseurDetail = () => {
           <div className="modal-box w-11/12 max-w-md p-4 sm:p-6">
             <div className="text-center mb-4 sm:mb-6">
               <div className="avatar placeholder mb-3 sm:mb-4">
-                <div className="bg-error/10 text-error rounded-full w-16 h-16 sm:w-20 sm:h-20">
+                <div className="bg-error/10 text-error rounded-full w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
                   <AlertCircle className="w-8 h-8 sm:w-10 sm:h-10" />
                 </div>
               </div>
