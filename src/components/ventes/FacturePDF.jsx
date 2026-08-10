@@ -75,7 +75,7 @@ const FacturePDF = async (facture) => {
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(black)
       doc.text('SEYDI GROUP SARL', margins.left, y + 14)
-      doc.text('Solutions Digitales', margins.left, y + 19)
+      doc.text('gestion commercial', margins.left, y + 19)
     }
 
     const companyBox = { x: pageWidth - margins.right - 85, y: y, w: 85, h: 35 }
