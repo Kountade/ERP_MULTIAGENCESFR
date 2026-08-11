@@ -93,7 +93,7 @@ import {
   FileCheck,
   Coins,
   PiggyBank,
-  Layers  // ← AJOUT POUR LES LOTS
+  Layers
 } from 'lucide-react'
 
 import logo from '../assets/logo.svg'
@@ -181,7 +181,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   const [ventesImpayees, setVentesImpayees] = useState(0)
   const [absencesEnAttente, setAbsencesEnAttente] = useState(0)
  
-  // ✅ NOUVEAU : État pour les lots
+  // État pour les lots
   const [lotsStats, setLotsStats] = useState({
     total: 0,
     expiringSoon: 0,
@@ -395,7 +395,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           }
         }
        
-        // ✅ NOUVEAU : Charger les données des lots
+        // Charger les données des lots
         const lotsRes = await AxiosInstance.get(`/lots/${params}`).catch(() => ({ data: [] }))
         const lotsData = lotsRes.data || []
        
@@ -456,7 +456,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           notifs.push({ id: 'absences', title: 'Absences en attente', message: `${absencesRes.data.length} demande(s) de congé en attente`, link: '/leaves', type: 'info', time: "aujourd'hui" })
         }
        
-        // ✅ NOUVEAU : Notifications pour les lots expirant bientôt
+        // Notifications pour les lots expirant bientôt
         if (expiringSoon > 0) {
           notifs.push({
             id: 'lots-expiring',
@@ -654,9 +654,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       items: [
         { id: 'fournisseurs', text: 'Fournisseurs', icon: Building2, path: '/fournisseurs', permission: canViewSuppliers(), badge: fournisseursCount },
         { id: 'commandes', text: 'Commandes', icon: FileText, path: '/commandes-fournisseurs', permission: canViewPurchases(), badge: achatsALivrer },
-        // ✅ NOUVEAU : Factures Fournisseur
         { id: 'factures-fournisseur', text: 'Factures Fournisseur', icon: Receipt, path: '/factures-fournisseur', permission: canViewPurchases(), badge: 0 },
-        // ✅ NOUVEAU : Paiement Fournisseur
         { id: 'paiement-fournisseur', text: 'Paiement Fournisseur', icon: DollarSign, path: '/paiement-fournisseur', permission: canViewPurchases(), badge: 0 },
         { id: 'receptions', text: 'Réceptions', icon: Truck, path: '/receptions', permission: canViewPurchases() },
         { id: 'frais', text: 'Frais de réception', icon: DollarSign, path: '/frais', permission: canViewPurchases() },
@@ -676,7 +674,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         { id: 'marques', text: 'Marques', icon: Award, path: '/brands', permission: canViewInventory() },
         { id: 'unites', text: 'Unités', icon: Ruler, path: '/units', permission: canViewInventory() },
         { id: 'reception', text: 'Réception stock', icon: Truck, path: '/stock-receipt', permission: canViewInventory() },
-        // ✅ NOUVEAU : Menu Lots
         {
           id: 'lots',
           text: 'Lots',
@@ -1003,7 +1000,8 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                   </div>
                 </div>
                 <div>
-                  <h1 className="text-primary-content font-bold text-lg tracking-wide">SEYDY GROUP</h1>
+                  {/* ✅ MODIFICATION ICI - SEYDY GROUP → BUROK EMPIRE */}
+                  <h1 className="text-primary-content font-bold text-lg tracking-wide">BUROK EMPIRE</h1>
                   <p className="text-primary-content/60 text-[10px] font-medium">ERP Management</p>
                 </div>
               </Link>
@@ -1012,7 +1010,8 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                 <div className="w-8 h-8 bg-base-100 rounded-lg flex items-center justify-center border-2 border-accent">
                   <img src={logo} alt="Logo" className="w-6 h-6 object-contain" />
                 </div>
-                <span className="text-primary-content font-bold text-sm">SEYDY GROUP</span>
+                {/* ✅ MODIFICATION ICI - SEYDY GROUP → BUROK EMPIRE (version mobile) */}
+                <span className="text-primary-content font-bold text-sm">BUROK EMPIRE</span>
               </div>
             </div>
 
@@ -1376,7 +1375,8 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
               </div>
               {sidebarOpen && (
                 <div>
-                  <h2 className="font-bold text-base-content text-sm">SEYDY GROUP</h2>
+                  {/* ✅ MODIFICATION ICI - SEYDY GROUP → BUROK EMPIRE (sidebar) */}
+                  <h2 className="font-bold text-base-content text-sm">BUROK EMPIRE</h2>
                   <p className="text-xs text-base-content/50">ERP Management</p>
                 </div>
               )}
@@ -1561,7 +1561,8 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                     <img src={logo} alt="Logo" className="w-full h-full object-contain" />
                   </div>
                   <div>
-                    <h2 className="text-primary-content font-bold text-lg">SEYDY GROUP</h2>
+                    {/* ✅ MODIFICATION ICI - SEYDY GROUP → BUROK EMPIRE (mobile menu) */}
+                    <h2 className="text-primary-content font-bold text-lg">BUROK EMPIRE</h2>
                     <p className="text-primary-content/70 text-xs">{roleConfig.label}</p>
                   </div>
                 </div>
