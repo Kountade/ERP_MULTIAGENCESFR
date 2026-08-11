@@ -81,31 +81,24 @@ const addWatermark = (doc, text, options = {}) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   
-  // Sauvegarder l'état actuel
   const currentFontSize = doc.internal.getFontSize();
   const currentTextColor = doc.internal.getTextColor();
   
-  // Calculer la taille du texte
   doc.setFontSize(fontSize);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(color[0], color[1], color[2]);
   
-  // Définir l'opacité
   doc.setGState(new doc.GState({ opacity: opacity }));
   
-  // Calculer la diagonale pour couvrir toute la page
   const diagonal = Math.sqrt(pageWidth * pageWidth + pageHeight * pageHeight);
   const textWidth = doc.getTextWidth(text);
   
-  // Nombre de répétitions nécessaires
   const numX = Math.ceil((diagonal + textWidth) / (textWidth + spacing));
   const numY = Math.ceil(diagonal / spacing);
   
-  // Décalage pour centrer le motif
   const offsetX = (pageWidth - numX * (textWidth + spacing)) / 2;
   const offsetY = (pageHeight - numY * spacing) / 2;
   
-  // Si répétition désactivée, un seul filigrane au centre
   if (!repeat) {
     const centerX = pageWidth / 2;
     const centerY = pageHeight / 2;
@@ -115,7 +108,6 @@ const addWatermark = (doc, text, options = {}) => {
       baseline: 'middle'
     });
   } else {
-    // Filigrane répété en diagonale
     for (let i = 0; i < numY; i++) {
       for (let j = 0; j < numX; j++) {
         const x = offsetX + j * (textWidth + spacing);
@@ -128,7 +120,6 @@ const addWatermark = (doc, text, options = {}) => {
     }
   }
   
-  // Restaurer l'état
   doc.setFontSize(currentFontSize);
   doc.setTextColor(currentTextColor[0], currentTextColor[1], currentTextColor[2]);
   doc.setGState(new doc.GState({ opacity: 1 }));
@@ -150,10 +141,10 @@ const Livraison = async (vente, options = {}) => {
 
     // ========== INFORMATIONS DE L'ENTREPRISE ==========
     const company = {
-      name: 'SEYDI GROUP SARL',
+      name: 'BUROK EMPIRE',
       address: 'Dakar, Sénégal',
       phone: '+221 33 123 45 67',
-      email: 'contact@seydigroup.com',
+      email: 'contact@burokempire.com',
       rccm: 'SN DKR 2023 B 123',
       capital: '10 000 000 FCFA'
     };
@@ -174,13 +165,11 @@ const Livraison = async (vente, options = {}) => {
     const agenceNom = vente.agence?.nom || 'Agence principale';
     const vendeurNom = vente.vendeur?.email || vente.vendeur_nom || 'Commercial';
 
-    // Options de livraison
     const dateLivraison = options.date_livraison || '';
     const adresseLivraison = options.adresse_livraison || clientAdr;
     const contactLivraison = options.contact_livraison || clientTel;
     const instructions = options.instructions || '';
 
-    // Articles et totaux
     const items = vente.items || [];
     const sousTotal = parseFloat(vente.sous_total) || 0;
     const tva = parseFloat(vente.tva) || 0;
@@ -206,10 +195,7 @@ const Livraison = async (vente, options = {}) => {
     let logoData = null;
     try { logoData = await loadLogo(logoSvg); } catch { /* ignore */ }
 
-    // ================================================================
-    // AJOUT DU FILIGRANE OBLIQUE SUR TOUTES LES PAGES
-    // ================================================================
-    // Filigrane personnalisé - "BON DE LIVRAISON" en diagonale
+    // Filigrane
     const watermarkText = options.watermark || 'BON DE LIVRAISON';
     const watermarkOptions = {
       fontSize: options.watermarkSize || 40,
@@ -221,9 +207,8 @@ const Livraison = async (vente, options = {}) => {
     };
 
     // ================================================================
-    // EN-TÊTE - Design style version 2
+    // EN-TÊTE
     // ================================================================
-    // Logo taille 26 mm (entre 22 et 35)
     const logoWidth = 26;
     const logoHeight = 26;
     
@@ -235,7 +220,6 @@ const Livraison = async (vente, options = {}) => {
       doc.text(company.name, margins.left, y + 5);
     }
 
-    // Info société à côté du logo - ajusté pour le logo de 26mm
     const textStartX = margins.left + logoWidth + 7;
     doc.setFontSize(13.5);
     doc.setFont('helvetica', 'bold');
@@ -249,7 +233,6 @@ const Livraison = async (vente, options = {}) => {
     doc.text(`N° RCCM : ${company.rccm}`, textStartX, y + 14.5);
     doc.text(company.address.toUpperCase(), textStartX, y + 18.5);
     
-    // Titre à droite
     doc.setFontSize(13.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(26, 35, 126);
@@ -261,18 +244,15 @@ const Livraison = async (vente, options = {}) => {
     doc.text(`N° ${reference}`, pageWidth - margins.right, y + 10.5, { align: 'right' });
     doc.text(`Émis le ${formatDate(new Date().toISOString())}`, pageWidth - margins.right, y + 14.5, { align: 'right' });
 
-    // Ligne de séparation sous l'en-tête
-   // Ligne de séparation sous l'en-tête
-y += 27; // Ajusté pour le logo de 26mm (entre 24 et 30)
-doc.setDrawColor(26, 35, 126);
-doc.setLineWidth(0.4); // Changé de 1.5 à 0.3 pour une ligne plus fine
-doc.line(margins.left, y, pageWidth - margins.right, y);
-y += 8;
+    y += 27;
+    doc.setDrawColor(26, 35, 126);
+    doc.setLineWidth(0.4);
+    doc.line(margins.left, y, pageWidth - margins.right, y);
+    y += 8;
 
     // ================================================================
-    // GRILLE D'INFORMATIONS - Style version 2
+    // GRILLE D'INFORMATIONS
     // ================================================================
-    // Fond gris clair pour la grille
     const gridY = y;
     doc.setFillColor(248, 249, 250);
     doc.roundedRect(margins.left, gridY, contentWidth, 18, 2, 2, 'F');
@@ -291,14 +271,12 @@ y += 8;
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(120, 144, 156);
     
-    // Labels en haut
     doc.text('DATE VENTE', gridX1 + 4, gridY + 4.5);
     doc.text('AGENCE', gridX2 + 4, gridY + 4.5);
     doc.text('VENDEUR', gridX3 + 4, gridY + 4.5);
     doc.text('TYPE', gridX4 + 4, gridY + 4.5);
     doc.text('DATE LIVRAISON', gridX5 + 4, gridY + 4.5);
 
-    // Valeurs
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(26, 35, 126);
@@ -315,7 +293,7 @@ y += 8;
     y = gridY + 22;
 
     // ================================================================
-    // INFORMATIONS CLIENT - Style version 2
+    // INFORMATIONS CLIENT
     // ================================================================
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
@@ -327,7 +305,6 @@ y += 8;
     doc.line(margins.left, y, pageWidth - margins.right, y);
     y += 6;
 
-    // Fond gris clair pour la section client
     const clientY = y;
     doc.setFillColor(248, 249, 250);
     doc.roundedRect(margins.left, clientY, contentWidth, 30, 2, 2, 'F');
@@ -385,7 +362,7 @@ y += 8;
     y = clientY + 34;
 
     // ================================================================
-    // TABLEAU DES ARTICLES - Style amélioré version 2
+    // TABLEAU DES ARTICLES
     // ================================================================
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
@@ -397,20 +374,19 @@ y += 8;
     doc.line(margins.left, y, pageWidth - margins.right, y);
     y += 6;
 
-    // Définition des colonnes (incluant remise comme version 2)
+    // Colonnes ajustées
     const colDescX = margins.left;
-    const colRefX = margins.left + 50;
-    const colQtyX = margins.left + 85;
-    const colPriceX = margins.left + 105;
-    const colRemiseX = margins.left + 130;
-    const colTotalX = pageWidth - margins.right;
+    const colRefX = margins.left + 45;
+    const colQtyX = margins.left + 75;
+    const colPriceX = margins.left + 95;
+    const colRemiseX = margins.left + 118;
+    const colTotalX = pageWidth - margins.right - 2;
 
-    // En-tête du tableau - fond bleu comme version 2
     const headerY = y;
     doc.setFillColor(26, 35, 126);
     doc.roundedRect(colDescX, headerY, contentWidth, 7, 2, 2, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
     doc.text('Désignation', colDescX + 3, headerY + 4.5);
     doc.text('Réf.', colRefX + 3, headerY + 4.5);
@@ -439,18 +415,15 @@ y += 8;
         const remise = parseFloat(item.remise) || 0;
         const itemTotal = parseFloat(item.total) || (qty * price - remise);
 
-        // Vérifier si on doit sauter de page
         if (currentY > pageHeight - 60) {
           doc.addPage();
-          // Ajouter le filigrane sur la nouvelle page
           addWatermark(doc, watermarkText, watermarkOptions);
           
           currentY = margins.top;
-          // Ré-afficher l'en-tête
           doc.setFillColor(26, 35, 126);
           doc.roundedRect(colDescX, currentY, contentWidth, 7, 2, 2, 'F');
           doc.setTextColor(255, 255, 255);
-          doc.setFontSize(8);
+          doc.setFontSize(7.5);
           doc.setFont('helvetica', 'bold');
           doc.text('Désignation', colDescX + 3, currentY + 4.5);
           doc.text('Réf.', colRefX + 3, currentY + 4.5);
@@ -461,13 +434,11 @@ y += 8;
           currentY += 7;
         }
 
-        // Alternance des couleurs de ligne
         if (rowIndex % 2 === 0) {
           doc.setFillColor(248, 249, 250);
           doc.rect(colDescX, currentY - 0.5, contentWidth, 6.5, 'F');
         }
 
-        // Bordures verticales
         doc.setDrawColor(224, 224, 224);
         doc.setLineWidth(0.1);
         doc.line(colDescX, currentY, colDescX, currentY + 6);
@@ -477,104 +448,146 @@ y += 8;
         doc.line(colRemiseX, currentY, colRemiseX, currentY + 6);
         doc.line(colTotalX, currentY, colTotalX, currentY + 6);
 
-        // Contenu
         doc.setTextColor(33, 33, 33);
-        doc.setFontSize(8);
+        doc.setFontSize(7.5);
         doc.setFont('helvetica', 'normal');
         doc.text(productName, colDescX + 3, currentY + 4);
         doc.text(productRef, colRefX + 3, currentY + 4);
         doc.text(qty.toString(), colQtyX + 3, currentY + 4);
         doc.text(formatCurrency(price), colPriceX + 3, currentY + 4);
         doc.text(remise > 0 ? formatCurrency(remise) : '-', colRemiseX + 3, currentY + 4);
-        doc.text(formatCurrency(itemTotal), colTotalX - 3, currentY + 4, { align: 'right' });
+        
+        const totalText = formatCurrency(itemTotal);
+        const maxWidth = colTotalX - colRemiseX - 6;
+        if (doc.getTextWidth(totalText) > maxWidth) {
+          doc.setFontSize(6.5);
+          doc.text(totalText, colTotalX - 3, currentY + 4, { align: 'right' });
+          doc.setFontSize(7.5);
+        } else {
+          doc.text(totalText, colTotalX - 3, currentY + 4, { align: 'right' });
+        }
 
         currentY += 6.5;
         rowIndex++;
       }
     }
 
-    // Ligne de séparation sous le tableau
     doc.setDrawColor(180, 180, 190);
     doc.setLineWidth(0.3);
     doc.line(colDescX, currentY, pageWidth - margins.right, currentY);
     y = currentY + 5;
 
     // ================================================================
-    // TOTAUX - Style version 2
+    // TOTAUX - Style structuré comme l'exemple
     // ================================================================
-    const amountBlockW = 65;
-    const amountBlockX = pageWidth - margins.right - amountBlockW;
     let ay = y;
 
-    // Fond pour le bloc total
-    const totalBoxH = 22;
-    doc.setFillColor(232, 234, 246);
-    doc.roundedRect(amountBlockX - 6, ay - 2, amountBlockW + 12, totalBoxH, 2, 2, 'F');
-    doc.setDrawColor(197, 202, 233);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(amountBlockX - 6, ay - 2, amountBlockW + 12, totalBoxH, 2, 2, 'S');
+    // 1. Bloc TOTAL (comme amountBox)
+    const amountBoxWidth = 70;
+    const amountBoxX = pageWidth - margins.right - amountBoxWidth;
+    const amountBoxHeight = 12;
 
-    doc.setFontSize(11);
+    // Fond pour le bloc TOTAL
+    doc.setFillColor(26, 35, 126);
+    doc.roundedRect(amountBoxX - 7, ay - 2, amountBoxWidth + 8, amountBoxHeight, 2, 2, 'F');
+
+    // Label TOTAL
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(26, 35, 126);
-    doc.text('TOTAL', amountBlockX, ay + 5);
-    
-    doc.setFontSize(15);
-    doc.setTextColor(26, 35, 126);
-    doc.text(formatCurrency(total), pageWidth - margins.right, ay + 5, { align: 'right' });
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOTAL', amountBoxX + 4, ay + 6);
 
-    ay += 14;
+    // Valeur du total
+    const totalFormatted = formatCurrency(total);
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    let fontSizeTotal = 12;
+    let textWidthTotal = doc.getTextWidth(totalFormatted);
+    if (textWidthTotal > amountBoxWidth - 10) {
+      fontSizeTotal = 10;
+      doc.setFontSize(fontSizeTotal);
+      if (doc.getTextWidth(totalFormatted) > amountBoxWidth - 10) {
+        fontSizeTotal = 8;
+        doc.setFontSize(fontSizeTotal);
+      }
+    }
+    doc.text(totalFormatted, amountBoxX + amountBoxWidth, ay + 6, { align: 'right' });
 
-    // Montant en toutes lettres
+    ay += amountBoxHeight + 4;
+
+    // 2. Montant en toutes lettres (comme lettresBox)
+    const lettresBoxHeight = 14;
+    doc.setFillColor(248, 249, 250);
+    doc.roundedRect(margins.left, ay, contentWidth, lettresBoxHeight, 2, 2, 'F');
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margins.left, ay, contentWidth, lettresBoxHeight, 2, 2, 'S');
+
+    // Label "Montant en toutes lettres :"
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(26, 35, 126);
-    doc.text('Montant en toutes lettres :', amountBlockX, ay + 4);
-    
+    doc.setTextColor(84, 110, 122);
+    doc.text('Montant en toutes lettres :', margins.left + 6, ay + 9);
+
+    // Valeur en lettres
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(33, 33, 33);
-    const lettresWidth = doc.getTextWidth(totalEnLettres);
-    const maxLettresWidth = 70;
-    if (lettresWidth > maxLettresWidth) {
-      const splitLettres = doc.splitTextToSize(totalEnLettres, maxLettresWidth);
-      doc.text(splitLettres, amountBlockX + 45, ay + 4);
-    } else {
-      doc.text(totalEnLettres, amountBlockX + 45, ay + 4);
+
+    const lettresStartX = margins.left + 65;
+    const lettresAvailableWidth = contentWidth - 70;
+
+    // Ajuster la taille de la police si nécessaire
+    let lettresFontSize = 8;
+    doc.setFontSize(lettresFontSize);
+    let lettresWidth = doc.getTextWidth(totalEnLettres);
+
+    while (lettresWidth > lettresAvailableWidth && lettresFontSize > 5) {
+      lettresFontSize -= 0.5;
+      doc.setFontSize(lettresFontSize);
+      lettresWidth = doc.getTextWidth(totalEnLettres);
     }
 
-    y = ay + 14;
+    if (lettresWidth > lettresAvailableWidth) {
+      const splitLettres = doc.splitTextToSize(totalEnLettres, lettresAvailableWidth);
+      doc.text(splitLettres, lettresStartX, ay + 5);
+    } else {
+      doc.text(totalEnLettres, lettresStartX, ay + 9);
+    }
 
-    // ================================================================
-    // INSTRUCTIONS SPÉCIALES
-    // ================================================================
+    ay += lettresBoxHeight + 6;
+
+    // 3. Instructions spéciales (comme notesBox)
     if (instructions && typeof instructions === 'string' && instructions.trim()) {
+      const notesBoxHeight = 20;
+      doc.setFillColor(255, 248, 230);
+      doc.roundedRect(margins.left, ay, contentWidth, notesBoxHeight, 2, 2, 'F');
       doc.setDrawColor(255, 204, 128);
       doc.setLineWidth(0.5);
-      doc.roundedRect(margins.left, y, contentWidth, 16, 2, 2, 'S');
-      doc.setFillColor(255, 243, 224);
-      doc.roundedRect(margins.left, y, contentWidth, 16, 2, 2, 'F');
+      doc.roundedRect(margins.left, ay, contentWidth, notesBoxHeight, 2, 2, 'S');
       
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(230, 81, 0);
-      doc.text('INSTRUCTIONS SPÉCIALES', margins.left + 4, y + 4.5);
+      doc.text('Instructions spéciales', margins.left + 6, ay + 5);
       
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(66, 66, 66);
-      const splitNotes = doc.splitTextToSize(instructions, contentWidth - 8);
-      doc.text(splitNotes, margins.left + 4, y + 9);
-      y += 20;
+      const splitNotes = doc.splitTextToSize(instructions, contentWidth - 12);
+      doc.text(splitNotes, margins.left + 6, ay + 12);
+      
+      ay += notesBoxHeight + 6;
     }
 
+    y = ay;
+
     // ================================================================
-    // SIGNATURES - Style version 2
+    // SIGNATURES
     // ================================================================
     const signatureY = y + 8;
     const signatureWidth = 85;
     const signatureX1 = margins.left;
     const signatureX2 = pageWidth - margins.right - signatureWidth;
 
-    // Signature client
     doc.setDrawColor(66, 66, 66);
     doc.setLineWidth(0.5);
     doc.line(signatureX1, signatureY + 5, signatureX1 + signatureWidth, signatureY + 5);
@@ -587,7 +600,6 @@ y += 8;
     doc.setTextColor(120, 144, 156);
     doc.text('Nom et date', signatureX1 + (signatureWidth / 2), signatureY + 12, { align: 'center' });
 
-    // Signature entreprise
     doc.line(signatureX2, signatureY + 5, signatureX2 + signatureWidth, signatureY + 5);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
@@ -601,7 +613,7 @@ y += 8;
     y = signatureY + 20;
 
     // ================================================================
-    // PIED DE PAGE - Style version 2
+    // PIED DE PAGE
     // ================================================================
     const footerY = pageHeight - margins.bottom - 10;
     doc.setDrawColor(224, 224, 224);
@@ -611,7 +623,7 @@ y += 8;
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(120, 144, 156);
-    doc.text('SEYDI GROUP SARL - DAKAR, SÉNÉGAL', pageWidth / 2, footerY, { align: 'center' });
+    doc.text('BUROK EMPIRE - DAKAR, SÉNÉGAL', pageWidth / 2, footerY, { align: 'center' });
     doc.text(`Tél: ${company.phone} - Email: ${company.email}`, pageWidth / 2, footerY + 4, { align: 'center' });
     doc.text(`RCCM: ${company.rccm}`, pageWidth / 2, footerY + 8, { align: 'center' });
 
@@ -621,19 +633,12 @@ y += 8;
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
-      
-      // Ajouter le filigrane sur chaque page
       addWatermark(doc, watermarkText, watermarkOptions);
-      
-      // Numéro de page
       doc.setFontSize(7);
       doc.setTextColor(160, 160, 170);
       doc.text(`Page ${i}/${pageCount}`, pageWidth - margins.right, pageHeight - margins.bottom, { align: 'right' });
     }
 
-    // ================================================================
-    // SAUVEGARDE
-    // ================================================================
     doc.save(`Bon_livraison_${blReference}.pdf`);
     return true;
 
