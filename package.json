@@ -6,8 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "create-logo": "node scripts/create-default-logo.js",
+    "generate-icons": "node scripts/generate-icons.js",
+    "setup-pwa": "npm run create-logo && npm run generate-icons",
+    "pwa:check": "node scripts/check-pwa.js",
+    "clean": "rimraf dist public/icons"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
@@ -27,6 +32,7 @@
     "react-router-dom": "^7.11.0",
     "recharts": "^3.10.1",
     "tailwindcss": "^4.3.3",
+    "workbox-webpack-plugin": "^7.4.1",
     "yup": "^1.7.1"
   },
   "devDependencies": {
@@ -37,6 +43,7 @@
     "@vitejs/plugin-react": "^6.0.4",
     "babel-plugin-react-compiler": "^1.0.0",
     "oxlint": "^1.75.0",
+    "sharp": "^0.35.3",
     "vite": "^8.2.0",
     "vite-plugin-pwa": "^1.3.0"
   }

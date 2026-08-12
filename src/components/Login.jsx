@@ -187,7 +187,7 @@ const Login = () => {
                     <Shield className="w-7 h-7 text-primary-content" />
                   </div>
                   <div>
-                    <h1 className="text-2xl font-bold tracking-tight">SEYDI GROUP</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">GROUP BUROK EMPIRE</h1>
                     <p className="text-xs opacity-80">Enterprise Resource Planning</p>
                   </div>
                 </div>
@@ -240,7 +240,7 @@ const Login = () => {
                       fait la différence."
                     </p>
                     <p className="text-xs font-medium mt-2 text-primary-content">
-                      - Direction SEYDI GROUP
+                      - Direction GROUP BUROK EMPIRE
                     </p>
                   </div>
                 </div>
@@ -269,7 +269,7 @@ const Login = () => {
                 <div className="text-center space-y-3">
                   <div className="w-20 h-20 mx-auto bg-gradient-to-br from-primary to-primary/80 rounded-2xl flex items-center justify-center shadow-lg relative group">
                     <div className="absolute inset-0 bg-primary-content/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    <img src={logo} alt="Logo SEYDI GROUP" className="w-12 h-12 object-contain relative z-10" />
+                    <img src={logo} alt="Logo GROUP BUROK EMPIRE" className="w-12 h-12 object-contain relative z-10" />
                   </div>
                   
                   <div>
@@ -295,7 +295,7 @@ const Login = () => {
                     </div>
                     <input
                       type="email"
-                      placeholder="exemple@sey digroup.com"
+                      placeholder="exemple@groupburokempire.com"
                       className={`input input-bordered w-full pl-10 pr-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-200 ${
                         errors.email ? 'input-error' : ''
                       }`}
@@ -422,7 +422,7 @@ const Login = () => {
                 {/* Section création de compte */}
                 <div className="text-center space-y-3">
                   <p className="text-sm text-base-content/60">
-                    Nouveau chez SEYDI GROUP ?
+                    Nouveau chez GROUP BUROK EMPIRE ?
                   </p>
                   <Link
                     to="/register"
@@ -457,7 +457,7 @@ const Login = () => {
                     </Link>
                   </div>
                   <p className="text-xs text-base-content/40">
-                    © {currentYear} SEYDI GROUP – ERP Multi-Agences. Tous droits réservés.
+                    © {currentYear} GROUP BUROK EMPIRE – ERP Multi-Agences. Tous droits réservés.
                   </p>
                 </div>
               </form>
