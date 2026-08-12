@@ -1,578 +1,743 @@
-// src/pages/transferts/TransfertPdf.jsx
-import jsPDF from 'jspdf'
-import logoSvg from '../../assets/logo.svg'
+// src/components/transferts/TransfertPDF.js
+import jsPDF from 'jspdf';
+import logoSvg from '../../assets/logo.svg';
 
-const TransfertPdf = async (transfer) => {
+// ========== FONCTION POUR ÉCRIRE LES NOMBRES EN LETTRES ==========
+const nombreEnLettres = (montant) => {
+  const unite = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf'];
+  const dizaine = ['', 'dix', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
+  const centaine = ['', 'cent', 'deux cents', 'trois cents', 'quatre cents', 'cinq cents', 'six cents', 'sept cents', 'huit cents', 'neuf cents'];
+
+  const sousBloc = (n) => {
+    if (n === 0) return '';
+    let lettres = '';
+    const cents = Math.floor(n / 100);
+    const reste = n % 100;
+    if (cents > 0) {
+      lettres += centaine[cents];
+      if (reste > 0) lettres += ' ';
+    }
+    if (reste > 0) {
+      if (reste < 10) lettres += unite[reste];
+      else if (reste < 20) {
+        const u = reste - 10;
+        if (u === 0) lettres += 'dix';
+        else if (u === 1) lettres += 'onze';
+        else if (u === 2) lettres += 'douze';
+        else if (u === 3) lettres += 'treize';
+        else if (u === 4) lettres += 'quatorze';
+        else if (u === 5) lettres += 'quinze';
+        else if (u === 6) lettres += 'seize';
+        else lettres += dizaine[1] + (u ? '-' + unite[u] : '');
+      } else {
+        const d = Math.floor(reste / 10);
+        const u = reste % 10;
+        if (d === 7 || d === 9) {
+          lettres += dizaine[d - 1] + '-' + (u === 0 ? '' : (u === 1 ? 'onze' : unite[u + 10]));
+        } else {
+          lettres += dizaine[d];
+          if (u === 1 && d !== 8) lettres += ' et un';
+          else if (u > 0) lettres += '-' + unite[u];
+        }
+      }
+    }
+    return lettres.trim();
+  };
+
+  const milliers = Math.floor(montant / 1000);
+  const resteMilliers = montant % 1000;
+  let result = '';
+  if (milliers > 0) {
+    if (milliers === 1) result += 'mille';
+    else result += sousBloc(milliers) + ' mille';
+    if (resteMilliers > 0) result += ' ';
+  }
+  if (resteMilliers > 0) result += sousBloc(resteMilliers);
+  if (result === '') result = 'zéro';
+  return result.charAt(0).toUpperCase() + result.slice(1) + ' Francs CFA';
+};
+
+// ========== FONCTIONS DE FORMATAGE ==========
+const formatNumber = (n) => {
+  const num = parseFloat(n) || 0;
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+};
+
+const formatCurrency = (amt) => `${formatNumber(amt)} FCFA`;
+
+const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR') : '-';
+
+const formatDateTime = (d) => {
+  if (!d) return '-';
+  try {
+    const date = new Date(d);
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return d;
+  }
+};
+
+// ========== FONCTION POUR AJOUTER UN FILIGRANE OBLIQUE ==========
+const addWatermark = (doc, text, options = {}) => {
+  const {
+    fontSize = 40,
+    color = [200, 200, 200],
+    opacity = 0.15,
+    angle = -45,
+    repeat = true,
+    spacing = 100
+  } = options;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  
+  const currentFontSize = doc.internal.getFontSize();
+  const currentTextColor = doc.internal.getTextColor();
+  
+  doc.setFontSize(fontSize);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(color[0], color[1], color[2]);
+  
+  doc.setGState(new doc.GState({ opacity: opacity }));
+  
+  const diagonal = Math.sqrt(pageWidth * pageWidth + pageHeight * pageHeight);
+  const textWidth = doc.getTextWidth(text);
+  
+  const numX = Math.ceil((diagonal + textWidth) / (textWidth + spacing));
+  const numY = Math.ceil(diagonal / spacing);
+  
+  const offsetX = (pageWidth - numX * (textWidth + spacing)) / 2;
+  const offsetY = (pageHeight - numY * spacing) / 2;
+  
+  if (!repeat) {
+    const centerX = pageWidth / 2;
+    const centerY = pageHeight / 2;
+    doc.text(text, centerX, centerY, { 
+      align: 'center',
+      angle: angle,
+      baseline: 'middle'
+    });
+  } else {
+    for (let i = 0; i < numY; i++) {
+      for (let j = 0; j < numX; j++) {
+        const x = offsetX + j * (textWidth + spacing);
+        const y = offsetY + i * spacing;
+        doc.text(text, x, y, {
+          angle: angle,
+          baseline: 'middle'
+        });
+      }
+    }
+  }
+  
+  doc.setFontSize(currentFontSize);
+  doc.setTextColor(currentTextColor[0], currentTextColor[1], currentTextColor[2]);
+  doc.setGState(new doc.GState({ opacity: 1 }));
+};
+
+// ========== FONCTION POUR OBTENIR LE STATUT ==========
+const getStatusInfo = (status) => {
+  const map = {
+    draft: { label: 'Brouillon', color: [117, 117, 117], bg: [245, 245, 245] },
+    pending_approval: { label: 'En attente', color: [255, 152, 0], bg: [255, 243, 224] },
+    approved: { label: 'Approuvé', color: [33, 150, 243], bg: [227, 242, 253] },
+    rejected: { label: 'Rejeté', color: [244, 67, 54], bg: [255, 235, 238] },
+    in_transit: { label: 'En transit', color: [76, 175, 80], bg: [232, 245, 233] },
+    partial: { label: 'Réception partielle', color: [255, 152, 0], bg: [255, 243, 224] },
+    completed: { label: 'Terminé', color: [76, 175, 80], bg: [232, 245, 233] },
+    cancelled: { label: 'Annulé', color: [117, 117, 117], bg: [245, 245, 245] },
+  };
+  return map[status] || map.draft;
+};
+
+// ========== COMPOSANT PRINCIPAL ==========
+const TransfertPDF = async (transfer, options = {}) => {
   if (!transfer || typeof transfer !== 'object') {
-    throw new Error('Données du transfert invalides')
+    throw new Error('Données du transfert invalides');
   }
 
   try {
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    
-    // === CONFIGURATION ===
-    const pageWidth = 210
-    const margins = { left: 15, right: 15, top: 15, bottom: 15 }
-    const contentWidth = pageWidth - margins.left - margins.right
-    let y = margins.top
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margins = { left: 15, right: 15, top: 18, bottom: 18 };
+    const contentWidth = pageWidth - margins.left - margins.right;
+    let y = margins.top;
 
-    // === COULEURS ===
-    const primaryColor = '#2563eb'
-    const secondaryColor = '#475569'
-    const successColor = '#059669'
-    const warningColor = '#d97706'
-    const errorColor = '#dc2626'
-    const black = '#000000'
-    const gray = '#64748b'
-    const lightGray = '#f1f5f9'
-    const borderColor = '#e2e8f0'
+    // ========== INFORMATIONS DE L'ENTREPRISE ==========
+    const company = {
+      name: 'BUROK GROUP ',
+      address: 'Dakar, Sénégal',
+      phone: '+221 33 123 45 67',
+      email: 'contact@burokgroup.com',
+      rccm: 'SN DKR 2023 B 123',
+      capital: '10 000 000 '
+    };
 
-    // === FONCTIONS ===
-    const formatNumber = (n) => {
-      const num = parseFloat(n) || 0
-      return new Intl.NumberFormat('fr-FR').format(num)
-    }
-    
-    const formatCurrency = (amount) => {
-      const num = parseFloat(amount) || 0
-      return `${formatNumber(num)} FCFA`
-    }
-    
-    const formatDate = (dateString) => {
-      if (!dateString) return '-'
-      try {
-        const date = new Date(dateString)
-        if (isNaN(date.getTime())) return '-'
-        return date.toLocaleDateString('fr-FR', { 
-          day: '2-digit', 
-          month: '2-digit', 
-          year: 'numeric'
-        })
-      } catch { return '-' }
-    }
+    // ========== DONNÉES DU TRANSFERT ==========
+    const data = transfer || {};
+    const items = data.items || [];
+    const fromAgence = data.from_agence || {};
+    const toAgence = data.to_agence || {};
+    const fromWarehouse = data.from_warehouse || {};
+    const toWarehouse = data.to_warehouse || {};
 
-    const formatDateTime = (dateString) => {
-      if (!dateString) return '-'
-      try {
-        const date = new Date(dateString)
-        if (isNaN(date.getTime())) return '-'
-        return date.toLocaleDateString('fr-FR', { 
-          day: '2-digit', 
-          month: '2-digit', 
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })
-      } catch { return '-' }
-    }
+    const reference = data.reference || 'Sans référence';
+    const createdAt = data.created_at || new Date().toISOString().split('T')[0];
+    const updatedAt = data.updated_at || '';
+    const notes = data.notes || '';
+    const rejectedReason = data.rejected_reason || '';
 
-    const getStatusConfig = (status) => {
-      const configs = {
-        draft: { label: 'BROUILLON', color: gray, bg: lightGray },
-        pending_approval: { label: 'EN ATTENTE', color: warningColor, bg: '#fef3c7' },
-        approved: { label: 'APPROUVÉ', color: primaryColor, bg: '#dbeafe' },
-        rejected: { label: 'REJETÉ', color: errorColor, bg: '#fee2e2' },
-        in_transit: { label: 'EN TRANSIT', color: successColor, bg: '#d1fae5' },
-        partial: { label: 'RÉCEPTION PARTIELLE', color: warningColor, bg: '#fef3c7' },
-        completed: { label: 'TERMINÉ', color: successColor, bg: '#d1fae5' },
-        cancelled: { label: 'ANNULÉ', color: errorColor, bg: '#fee2e2' }
-      }
-      return configs[status] || configs.draft
-    }
+    const statusInfo = getStatusInfo(data.status);
 
-    // === DONNÉES ===
-    const items = transfer.items || []
-    const fromAgence = transfer.from_agence || {}
-    const toAgence = transfer.to_agence || {}
-    const fromWarehouse = transfer.from_warehouse || {}
-    const toWarehouse = transfer.to_warehouse || {}
-    const statusConfig = getStatusConfig(transfer.status)
-    
-    const totalQuantity = items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0)
-    const totalReceived = items.reduce((sum, item) => sum + (parseFloat(item.quantity_received) || 0), 0)
-    const totalAmount = items.reduce((sum, item) => sum + ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)), 0)
+    // Calcul des totaux
+    const totalQuantity = items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
+    const totalReceived = items.reduce((sum, item) => sum + (parseFloat(item.quantity_received) || 0), 0);
+    const totalAmount = items.reduce((sum, item) => sum + ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)), 0);
+    const completionPercent = totalQuantity > 0 ? ((totalReceived / totalQuantity) * 100).toFixed(1) : 0;
+    const totalEnLettres = nombreEnLettres(totalAmount);
 
-    // === LOGO ===
+    // ========== CHARGEMENT DU LOGO ==========
     const loadLogo = (src) => new Promise((resolve) => {
-      const img = new Image()
-      img.crossOrigin = 'Anonymous'
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
       img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = img.width
-        canvas.height = img.height
-        canvas.getContext('2d').drawImage(img, 0, 0)
-        resolve(canvas.toDataURL('image/png'))
-      }
-      img.onerror = () => resolve(null)
-      img.src = src
-    })
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+    let logoData = null;
+    try { logoData = await loadLogo(logoSvg); } catch { /* ignore */ }
 
-    const logoData = await loadLogo(logoSvg)
+    // Filigrane
+    const watermarkText = options.watermark || 'BON DE TRANSFERT';
+    const watermarkOptions = {
+      fontSize: options.watermarkSize || 40,
+      color: options.watermarkColor || [200, 200, 200],
+      opacity: options.watermarkOpacity || 0.15,
+      angle: options.watermarkAngle || -45,
+      repeat: options.watermarkRepeat !== undefined ? options.watermarkRepeat : true,
+      spacing: options.watermarkSpacing || 100
+    };
 
-    // ============================================================
+    // ================================================================
     // EN-TÊTE
-    // ============================================================
+    // ================================================================
+    const logoWidth = 26;
+    const logoHeight = 26;
     
     if (logoData) {
-      doc.addImage(logoData, 'PNG', margins.left, y, 35, 17)
+      doc.addImage(logoData, 'PNG', margins.left, y, logoWidth, logoHeight);
     } else {
-      doc.setFontSize(14)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(black)
-      doc.text('SEYDI GROUP', margins.left, y + 6)
-      doc.setFontSize(9)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(black)
-      doc.text('SEYDI GROUP SARL', margins.left, y + 12)
-      doc.text('Solutions Digitales', margins.left, y + 17)
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(company.name, margins.left, y + 5);
     }
 
-    const companyBox = { x: pageWidth - margins.right - 75, y: y, w: 75, h: 30 }
-    doc.setDrawColor(borderColor)
-    doc.setLineWidth(0.2)
-    doc.rect(companyBox.x, companyBox.y, companyBox.w, companyBox.h, 'S')
+    const textStartX = margins.left + logoWidth + 7;
+    doc.setFontSize(13.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text(company.name, textStartX, y + 5.5);
     
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(black)
-    doc.text('SOCIÉTÉ', companyBox.x + companyBox.w / 2, companyBox.y + 4, { align: 'center' })
+    doc.setFontSize(7.8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(84, 110, 122);
+    doc.text(`Capital social : ${company.capital}`, textStartX, y + 10.5);
+    doc.text(`N° RCCM : ${company.rccm}`, textStartX, y + 14.5);
+    doc.text(company.address.toUpperCase(), textStartX, y + 18.5);
     
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(black)
-    doc.text('SEYDI GROUP SARL', companyBox.x + 3, companyBox.y + 9)
-    doc.text('Dakar, Sénégal', companyBox.x + 3, companyBox.y + 14)
-    doc.text('+221 33 123 45 67', companyBox.x + 3, companyBox.y + 19)
-    doc.setFontSize(8)
-    doc.text('contact@seydigroup.com', companyBox.x + 3, companyBox.y + 24)
-
-    y = companyBox.y + companyBox.h + 5
-
-    // ============================================================
-    // TITRE PRINCIPAL (sans trait bleu avant)
-    // ============================================================
-    doc.setFontSize(16)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(primaryColor)
-    doc.text('BON DE TRANSFERT DE STOCK', pageWidth / 2, y, { align: 'center' })
-    y += 6
-
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(secondaryColor)
-    doc.text('Document de transfert entre entrepôts', pageWidth / 2, y, { align: 'center' })
-    y += 6
-
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(primaryColor)
-    doc.text(`Réf: ${transfer.reference || 'N° TRANSFERT'}`, pageWidth / 2, y, { align: 'center' })
-    y += 8
-
-    // Trait bleu après le titre (uniquement celui-ci)
-    doc.setDrawColor(primaryColor)
-    doc.setLineWidth(0.5)
-    doc.line(margins.left, y, pageWidth - margins.right, y)
-    y += 6
-
-    // ============================================================
-    // STATUT
-    // ============================================================
-    const statusBox = { x: margins.left, y: y, w: contentWidth, h: 9 }
-    doc.setFillColor(statusConfig.bg)
-    doc.rect(statusBox.x, statusBox.y, statusBox.w, statusBox.h, 'F')
-    doc.setDrawColor(statusConfig.color)
-    doc.setLineWidth(0.3)
-    doc.rect(statusBox.x, statusBox.y, statusBox.w, statusBox.h, 'S')
+    doc.setFontSize(13.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text('BON DE TRANSFERT', pageWidth - margins.right, y + 5.5, { align: 'right' });
     
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(statusConfig.color)
-    doc.text(`STATUT: ${statusConfig.label}`, pageWidth / 2, y + 6, { align: 'center' })
-    y += 12
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(84, 110, 122);
+    doc.text(`N° ${reference}`, pageWidth - margins.right, y + 10.5, { align: 'right' });
+    doc.text(`Émis le ${formatDate(new Date().toISOString())}`, pageWidth - margins.right, y + 14.5, { align: 'right' });
 
-    // ============================================================
-    // INFORMATIONS GÉNÉRALES
-    // ============================================================
-    const infoBox = { x: margins.left, y: y, w: contentWidth, h: 24 }
-    doc.setDrawColor(borderColor)
-    doc.setLineWidth(0.2)
-    doc.rect(infoBox.x, infoBox.y, infoBox.w, infoBox.h, 'S')
-    
-    const midX = infoBox.x + infoBox.w / 2
-    doc.line(midX, infoBox.y, midX, infoBox.y + infoBox.h)
+    y += 27;
+    doc.setDrawColor(26, 35, 126);
+    doc.setLineWidth(0.4);
+    doc.line(margins.left, y, pageWidth - margins.right, y);
+    y += 8;
 
-    let infoY = infoBox.y + 4
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(black)
-    doc.text('GÉNÉRAL', infoBox.x + 4, infoY)
-    infoY += 5
-    
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(black)
-    doc.text('Date création :', infoBox.x + 4, infoY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(formatDate(transfer.created_at), infoBox.x + 35, infoY)
-    infoY += 5
-    
-    doc.setFont('helvetica', 'bold')
-    doc.text('Dernière modif :', infoBox.x + 4, infoY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(formatDate(transfer.updated_at), infoBox.x + 35, infoY)
+    // ================================================================
+    // GRILLE D'INFORMATIONS
+    // ================================================================
+    const gridY = y;
+    doc.setFillColor(248, 249, 250);
+    doc.roundedRect(margins.left, gridY, contentWidth, 18, 2, 2, 'F');
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margins.left, gridY, contentWidth, 18, 2, 2, 'S');
 
-    infoY = infoBox.y + 4
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(black)
-    doc.text('DOCUMENT', midX + 4, infoY)
-    infoY += 5
-    
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(black)
-    doc.text('Type :', midX + 4, infoY)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Transfert de stock', midX + 20, infoY)
-    infoY += 5
-    
-    doc.setFont('helvetica', 'bold')
-    doc.text('Généré le :', midX + 4, infoY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(formatDate(new Date()), midX + 20, infoY)
+    const colWidth = contentWidth / 4;
+    const gridX1 = margins.left;
+    const gridX2 = margins.left + colWidth;
+    const gridX3 = margins.left + colWidth * 2;
+    const gridX4 = margins.left + colWidth * 3;
 
-    y = infoBox.y + infoBox.h + 6
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(120, 144, 156);
+    
+    doc.text('DATE CRÉATION', gridX1 + 4, gridY + 4.5);
+    doc.text('DERNIÈRE MODIF.', gridX2 + 4, gridY + 4.5);
+    doc.text('TYPE', gridX3 + 4, gridY + 4.5);
+    doc.text('STATUT', gridX4 + 4, gridY + 4.5);
 
-    // ============================================================
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text(formatDate(createdAt), gridX1 + 4, gridY + 12);
+    doc.text(formatDate(updatedAt), gridX2 + 4, gridY + 12);
+    doc.text('Transfert de stock', gridX3 + 4, gridY + 12);
+
+    // Badge de statut
+    const statusX = gridX4 + 4;
+    const statusY = gridY + 5;
+    const statusW = 45;
+    const statusH = 10;
+    doc.setFillColor(statusInfo.bg[0], statusInfo.bg[1], statusInfo.bg[2]);
+    doc.setDrawColor(statusInfo.color[0], statusInfo.color[1], statusInfo.color[2]);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(statusX, statusY, statusW, statusH, 2, 2, 'FD');
+    
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(statusInfo.color[0], statusInfo.color[1], statusInfo.color[2]);
+    doc.text(statusInfo.label.toUpperCase(), statusX + statusW / 2, statusY + 7, { align: 'center' });
+
+    y = gridY + 22;
+
+    // ================================================================
     // AGENCES
-    // ============================================================
-    const agenceBox = { x: margins.left, y: y, w: contentWidth, h: 38 }
-    doc.setDrawColor(borderColor)
-    doc.setLineWidth(0.2)
-    doc.rect(agenceBox.x, agenceBox.y, agenceBox.w, agenceBox.h, 'S')
-    
-    const agenceMidX = agenceBox.x + agenceBox.w / 2
-    doc.line(agenceMidX, agenceBox.y, agenceMidX, agenceBox.y + agenceBox.h)
+    // ================================================================
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text('AGENCES', margins.left, y);
+    y += 2;
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.line(margins.left, y, pageWidth - margins.right, y);
+    y += 6;
 
-    let agenceY = agenceBox.y + 4
-    
+    // Deux colonnes pour les agences
+    const agenceBoxHeight = 30;
+    const agenceWidth = (contentWidth - 6) / 2;
+
     // Agence source
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(primaryColor)
-    doc.text('AGENCE SOURCE', agenceBox.x + 4, agenceY)
-    agenceY += 6
-    
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(black)
-    doc.text('Nom :', agenceBox.x + 4, agenceY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(fromAgence.nom || 'N/A', agenceBox.x + 25, agenceY)
-    agenceY += 5
-    
-    doc.setFont('helvetica', 'bold')
-    doc.text('Type :', agenceBox.x + 4, agenceY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(fromAgence.type_agence === 'principale' ? 'Principale' : 'Secondaire', agenceBox.x + 25, agenceY)
-    agenceY += 5
-    
-    doc.setFont('helvetica', 'bold')
-    doc.text('Entrepôt :', agenceBox.x + 4, agenceY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(fromWarehouse.name || 'N/A', agenceBox.x + 25, agenceY)
+    const agenceSourceX = margins.left;
+    const agenceDestX = margins.left + agenceWidth + 6;
+
+    doc.setFillColor(248, 249, 250);
+    doc.roundedRect(agenceSourceX, y, agenceWidth, agenceBoxHeight, 2, 2, 'F');
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(agenceSourceX, y, agenceWidth, agenceBoxHeight, 2, 2, 'S');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text('AGENCE SOURCE', agenceSourceX + 4, y + 5);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(33, 33, 33);
+    doc.text(`Nom : ${fromAgence.nom || 'N/A'}`, agenceSourceX + 4, y + 12);
+    doc.text(`Type : ${fromAgence.type_agence === 'principale' ? 'Principale' : 'Secondaire'}`, agenceSourceX + 4, y + 18);
+    doc.text(`Entrepôt : ${fromWarehouse.name || 'N/A'}`, agenceSourceX + 4, y + 24);
 
     // Agence destination
-    agenceY = agenceBox.y + 4
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(primaryColor)
-    doc.text('AGENCE DESTINATION', agenceMidX + 4, agenceY)
-    agenceY += 6
-    
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(black)
-    doc.text('Nom :', agenceMidX + 4, agenceY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(toAgence.nom || 'N/A', agenceMidX + 25, agenceY)
-    agenceY += 5
-    
-    doc.setFont('helvetica', 'bold')
-    doc.text('Type :', agenceMidX + 4, agenceY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(toAgence.type_agence === 'principale' ? 'Principale' : 'Secondaire', agenceMidX + 25, agenceY)
-    agenceY += 5
-    
-    doc.setFont('helvetica', 'bold')
-    doc.text('Entrepôt :', agenceMidX + 4, agenceY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(toWarehouse.name || 'N/A', agenceMidX + 25, agenceY)
+    doc.setFillColor(248, 249, 250);
+    doc.roundedRect(agenceDestX, y, agenceWidth, agenceBoxHeight, 2, 2, 'F');
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(agenceDestX, y, agenceWidth, agenceBoxHeight, 2, 2, 'S');
 
-    y = agenceBox.y + agenceBox.h + 6
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text('AGENCE DESTINATION', agenceDestX + 4, y + 5);
 
-    // ============================================================
-    // TABLEAU DES ARTICLES - Ordre: RÉFÉRENCE puis DÉSIGNATION
-    // ============================================================
-    const cols = {
-      reference: { w: 35, align: 'center' },
-      designation: { w: 65, align: 'left' },
-      qte: { w: 22, align: 'center' },
-      recu: { w: 22, align: 'center' },
-      pu: { w: 32, align: 'right' },
-      total: { w: 34, align: 'right' }
-    }
-    
-    let currentX = margins.left
-    const posRef = currentX
-    currentX += cols.reference.w
-    const posDesignation = currentX
-    currentX += cols.designation.w
-    const posQte = currentX
-    currentX += cols.qte.w
-    const posRecu = currentX
-    currentX += cols.recu.w
-    const posPu = currentX
-    currentX += cols.pu.w
-    const posTotal = currentX
-    
-    const rowH = 8
-    const tableTop = y
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(33, 33, 33);
+    doc.text(`Nom : ${toAgence.nom || 'N/A'}`, agenceDestX + 4, y + 12);
+    doc.text(`Type : ${toAgence.type_agence === 'principale' ? 'Principale' : 'Secondaire'}`, agenceDestX + 4, y + 18);
+    doc.text(`Entrepôt : ${toWarehouse.name || 'N/A'}`, agenceDestX + 4, y + 24);
 
-    // En-tête du tableau
-    doc.setFillColor(lightGray)
-    doc.rect(margins.left, tableTop, contentWidth, rowH, 'F')
-    doc.setDrawColor(borderColor)
-    doc.setLineWidth(0.1)
-    doc.rect(margins.left, tableTop, contentWidth, rowH, 'S')
-    doc.line(posDesignation, tableTop, posDesignation, tableTop + rowH)
-    doc.line(posQte, tableTop, posQte, tableTop + rowH)
-    doc.line(posRecu, tableTop, posRecu, tableTop + rowH)
-    doc.line(posPu, tableTop, posPu, tableTop + rowH)
-    doc.line(posTotal, tableTop, posTotal, tableTop + rowH)
+    y += agenceBoxHeight + 8;
 
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(black)
-    const headerY = tableTop + rowH / 2 + 1.5
-    doc.text('RÉFÉRENCE', posRef + cols.reference.w / 2, headerY, { align: 'center' })
-    doc.text('DÉSIGNATION', posDesignation + 2, headerY)
-    doc.text('QTÉ', posQte + cols.qte.w / 2, headerY, { align: 'center' })
-    doc.text('REÇU', posRecu + cols.recu.w / 2, headerY, { align: 'center' })
-    doc.text('PRIX U.', posPu + cols.pu.w - 3, headerY, { align: 'right' })
-    doc.text('TOTAL', posTotal + cols.total.w - 3, headerY, { align: 'right' })
+    // ================================================================
+    // TABLEAU DES ARTICLES
+    // ================================================================
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text('ARTICLES', margins.left, y);
+    y += 2;
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.line(margins.left, y, pageWidth - margins.right, y);
+    y += 6;
 
-    y = tableTop + rowH
+    // Colonnes ajustées
+    const colRefX = margins.left;
+    const colDescX = margins.left + 35;
+    const colQtyX = margins.left + 82;
+    const colRecuX = margins.left + 105;
+    const colPriceX = margins.left + 128;
+    const colTotalX = pageWidth - margins.right - 2;
 
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'normal')
+    const headerY = y;
+    doc.setFillColor(26, 35, 126);
+    doc.roundedRect(colRefX, headerY, contentWidth, 7, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Réf.', colRefX + 3, headerY + 4.5);
+    doc.text('Désignation', colDescX + 3, headerY + 4.5);
+    doc.text('Qté', colQtyX + 3, headerY + 4.5);
+    doc.text('Reçu', colRecuX + 3, headerY + 4.5);
+    doc.text('Prix U.', colPriceX + 3, headerY + 4.5);
+    doc.text('Total', colTotalX - 3, headerY + 4.5, { align: 'right' });
 
-    if (items.length) {
-      items.forEach((item, index) => {
-        const reference = (item.product?.reference || '-').substring(0, 15)
-        const designation = (item.product?.name || item.product_name || '-').substring(0, 35)
-        const qty = parseFloat(item.quantity) || 0
-        const received = parseFloat(item.quantity_received) || 0
-        const price = parseFloat(item.unit_price) || 0
-        const total = qty * price
+    y = headerY + 7;
+    let currentY = y;
+    let rowIndex = 0;
 
-        doc.rect(margins.left, y, contentWidth, rowH, 'S')
-        doc.line(posDesignation, y, posDesignation, y + rowH)
-        doc.line(posQte, y, posQte, y + rowH)
-        doc.line(posRecu, y, posRecu, y + rowH)
-        doc.line(posPu, y, posPu, y + rowH)
-        doc.line(posTotal, y, posTotal, y + rowH)
-
-        const cellY = y + rowH / 2 + 1.5
-        doc.text(reference, posRef + cols.reference.w / 2, cellY, { align: 'center' })
-        doc.text(designation, posDesignation + 2, cellY)
-        doc.text(formatNumber(qty), posQte + cols.qte.w / 2, cellY, { align: 'center' })
-        doc.text(formatNumber(received), posRecu + cols.recu.w / 2, cellY, { align: 'center' })
-        doc.text(formatNumber(price), posPu + cols.pu.w - 3, cellY, { align: 'right' })
-        doc.setFont('helvetica', 'bold')
-        doc.text(formatNumber(total), posTotal + cols.total.w - 3, cellY, { align: 'right' })
-        doc.setFont('helvetica', 'normal')
-
-        y += rowH
-      })
+    if (items.length === 0) {
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Aucun article dans ce transfert.', colRefX + 3, currentY + 5);
+      currentY += 10;
     } else {
-      doc.rect(margins.left, y, contentWidth, rowH, 'S')
-      doc.text('Aucun article', margins.left + contentWidth / 2, y + rowH / 2 + 1.5, { align: 'center' })
-      y += rowH
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
+        const productRef = item.product?.reference || '-';
+        const productName = item.product?.name || item.product_name || 'Produit inconnu';
+        const qty = parseFloat(item.quantity) || 0;
+        const received = parseFloat(item.quantity_received) || 0;
+        const price = parseFloat(item.unit_price) || 0;
+        const total = qty * price;
+
+        if (currentY > pageHeight - 70) {
+          doc.addPage();
+          addWatermark(doc, watermarkText, watermarkOptions);
+          
+          currentY = margins.top;
+          doc.setFillColor(26, 35, 126);
+          doc.roundedRect(colRefX, currentY, contentWidth, 7, 2, 2, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Réf.', colRefX + 3, currentY + 4.5);
+          doc.text('Désignation', colDescX + 3, currentY + 4.5);
+          doc.text('Qté', colQtyX + 3, currentY + 4.5);
+          doc.text('Reçu', colRecuX + 3, currentY + 4.5);
+          doc.text('Prix U.', colPriceX + 3, currentY + 4.5);
+          doc.text('Total', colTotalX - 3, currentY + 4.5, { align: 'right' });
+          currentY += 7;
+        }
+
+        if (rowIndex % 2 === 0) {
+          doc.setFillColor(248, 249, 250);
+          doc.rect(colRefX, currentY - 0.5, contentWidth, 6.5, 'F');
+        }
+
+        doc.setDrawColor(224, 224, 224);
+        doc.setLineWidth(0.1);
+        doc.line(colRefX, currentY, colRefX, currentY + 6);
+        doc.line(colDescX, currentY, colDescX, currentY + 6);
+        doc.line(colQtyX, currentY, colQtyX, currentY + 6);
+        doc.line(colRecuX, currentY, colRecuX, currentY + 6);
+        doc.line(colPriceX, currentY, colPriceX, currentY + 6);
+        doc.line(colTotalX, currentY, colTotalX, currentY + 6);
+
+        doc.setTextColor(33, 33, 33);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(productRef, colRefX + 3, currentY + 4);
+        doc.text(productName, colDescX + 3, currentY + 4);
+        doc.text(qty.toString(), colQtyX + 3, currentY + 4);
+        doc.text(received.toString(), colRecuX + 3, currentY + 4);
+        doc.text(formatCurrency(price), colPriceX + 3, currentY + 4);
+        
+        const totalText = formatCurrency(total);
+        const maxWidth = colTotalX - colPriceX - 6;
+        if (doc.getTextWidth(totalText) > maxWidth) {
+          doc.setFontSize(6.5);
+          doc.text(totalText, colTotalX - 3, currentY + 4, { align: 'right' });
+          doc.setFontSize(7.5);
+        } else {
+          doc.text(totalText, colTotalX - 3, currentY + 4, { align: 'right' });
+        }
+
+        currentY += 6.5;
+        rowIndex++;
+      }
     }
 
-    y += 3
-    doc.setDrawColor(borderColor)
-    doc.setLineWidth(0.2)
-    doc.line(margins.left, y, pageWidth - margins.right, y)
-    y += 4
+    doc.setDrawColor(180, 180, 190);
+    doc.setLineWidth(0.3);
+    doc.line(colRefX, currentY, pageWidth - margins.right, currentY);
+    y = currentY + 5;
 
-    // ============================================================
-    // RÉCAPITULATIF
-    // ============================================================
-    const recapBox = { x: margins.left, y: y, w: contentWidth, h: 35 }
-    doc.setDrawColor(borderColor)
-    doc.setLineWidth(0.2)
-    doc.rect(recapBox.x, recapBox.y, recapBox.w, recapBox.h, 'S')
-    
-    const recapMidX = recapBox.x + recapBox.w * 0.5
-    doc.line(recapMidX, recapBox.y, recapMidX, recapBox.y + recapBox.h)
+    // ================================================================
+    // TOTAUX
+    // ================================================================
+    let ay = y;
 
-    let ry = recapBox.y + 4
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(black)
-    doc.text('RÉCAPITULATIF', recapBox.x + recapBox.w / 2, ry, { align: 'center' })
-    ry += 6
+    // 1. Bloc TOTAL
+    const amountBoxWidth = 80;
+    const amountBoxX = pageWidth - margins.right - amountBoxWidth;
+    const amountBoxHeight = 12;
 
-    doc.setFontSize(8)
-    
-    doc.setFont('helvetica', 'bold')
-    doc.text('Articles :', recapBox.x + 5, ry)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`${items.length} article(s)`, recapBox.x + 40, ry)
-    ry += 5
+    doc.setFillColor(26, 35, 126);
+    doc.roundedRect(amountBoxX - 7, ay - 2, amountBoxWidth + 8, amountBoxHeight, 2, 2, 'F');
 
-    doc.setFont('helvetica', 'bold')
-    doc.text('Qté totale :', recapBox.x + 5, ry)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`${formatNumber(totalQuantity)} unités`, recapBox.x + 40, ry)
-    ry += 5
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('VALEUR TOTALE', amountBoxX + 4, ay + 6);
 
-    doc.setFont('helvetica', 'bold')
-    doc.text('Qté reçue :', recapBox.x + 5, ry)
-    doc.setFont('helvetica', 'normal')
-    const receivedPercent = totalQuantity > 0 ? (totalReceived / totalQuantity * 100).toFixed(1) : 0
-    doc.text(`${formatNumber(totalReceived)} (${receivedPercent}%)`, recapBox.x + 40, ry)
+    const totalFormatted = formatCurrency(totalAmount);
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    let fontSizeTotal = 12;
+    let textWidthTotal = doc.getTextWidth(totalFormatted);
+    if (textWidthTotal > amountBoxWidth - 10) {
+      fontSizeTotal = 10;
+      doc.setFontSize(fontSizeTotal);
+      if (doc.getTextWidth(totalFormatted) > amountBoxWidth - 10) {
+        fontSizeTotal = 8;
+        doc.setFontSize(fontSizeTotal);
+      }
+    }
+    doc.text(totalFormatted, amountBoxX + amountBoxWidth, ay + 6, { align: 'right' });
 
-    ry = recapBox.y + 4
-    ry += 6
-    ry += 5
-    ry += 5
-    
-    doc.setFont('helvetica', 'bold')
-    doc.text('Taux réception :', recapMidX + 5, ry)
-    doc.setFont('helvetica', 'normal')
-    const completionPercent = totalQuantity > 0 ? (totalReceived / totalQuantity * 100).toFixed(1) : 0
-    doc.text(`${completionPercent}%`, recapMidX + 45, ry)
-    ry += 6
+    ay += amountBoxHeight + 4;
 
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(primaryColor)
-    doc.text('VALEUR TOTALE :', recapMidX + 5, ry)
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.text(formatCurrency(totalAmount), recapMidX + 45, ry)
+    // 2. Montant en toutes lettres
+    const lettresBoxHeight = 14;
+    doc.setFillColor(248, 249, 250);
+    doc.roundedRect(margins.left, ay, contentWidth, lettresBoxHeight, 2, 2, 'F');
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margins.left, ay, contentWidth, lettresBoxHeight, 2, 2, 'S');
 
-    y = recapBox.y + recapBox.h + 5
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(84, 110, 122);
+    doc.text('Montant en toutes lettres :', margins.left + 6, ay + 9);
 
-    // ============================================================
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(33, 33, 33);
+
+    const lettresStartX = margins.left + 65;
+    const lettresAvailableWidth = contentWidth - 70;
+
+    let lettresFontSize = 8;
+    doc.setFontSize(lettresFontSize);
+    let lettresWidth = doc.getTextWidth(totalEnLettres);
+
+    while (lettresWidth > lettresAvailableWidth && lettresFontSize > 5) {
+      lettresFontSize -= 0.5;
+      doc.setFontSize(lettresFontSize);
+      lettresWidth = doc.getTextWidth(totalEnLettres);
+    }
+
+    if (lettresWidth > lettresAvailableWidth) {
+      const splitLettres = doc.splitTextToSize(totalEnLettres, lettresAvailableWidth);
+      doc.text(splitLettres, lettresStartX, ay + 5);
+    } else {
+      doc.text(totalEnLettres, lettresStartX, ay + 9);
+    }
+
+    ay += lettresBoxHeight + 6;
+
+    // 3. Résumé des quantités
+    const quantiteBoxHeight = 16;
+    doc.setFillColor(232, 234, 246);
+    doc.roundedRect(margins.left, ay, contentWidth, quantiteBoxHeight, 2, 2, 'F');
+    doc.setDrawColor(197, 202, 233);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margins.left, ay, contentWidth, quantiteBoxHeight, 2, 2, 'S');
+
+    const quantiteColWidth = contentWidth / 4;
+    const qX1 = margins.left;
+    const qX2 = margins.left + quantiteColWidth;
+    const qX3 = margins.left + quantiteColWidth * 2;
+    const qX4 = margins.left + quantiteColWidth * 3;
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(84, 110, 122);
+    doc.text('ARTICLES', qX1 + 6, ay + 6);
+    doc.text('QTÉ TOTALE', qX2 + 6, ay + 6);
+    doc.text('QTÉ REÇUE', qX3 + 6, ay + 6);
+    doc.text('AVANCEMENT', qX4 + 6, ay + 6);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text(items.length.toString(), qX1 + 6, ay + 13);
+    doc.text(formatNumber(totalQuantity), qX2 + 6, ay + 13);
+    doc.text(formatNumber(totalReceived), qX3 + 6, ay + 13);
+    doc.text(`${completionPercent}%`, qX4 + 6, ay + 13);
+
+    ay += quantiteBoxHeight + 6;
+
+    // ================================================================
     // NOTES
-    // ============================================================
-    if (transfer.notes) {
-      const notesLines = doc.splitTextToSize(transfer.notes, contentWidth - 10)
-      const notesBoxH = Math.min(20, notesLines.length * 4 + 8)
-      if (y + notesBoxH < 270) {
-        doc.setDrawColor(borderColor)
-        doc.setLineWidth(0.2)
-        doc.rect(margins.left, y, contentWidth, notesBoxH, 'S')
-        
-        doc.setFontSize(7)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(black)
-        doc.text('NOTES', margins.left + 4, y + 4)
-        
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(gray)
-        doc.text(notesLines, margins.left + 4, y + 8)
-        y += notesBoxH + 4
-      }
+    // ================================================================
+    if (notes && typeof notes === 'string' && notes.trim()) {
+      const notesBoxHeight = 20;
+      doc.setFillColor(255, 243, 224);
+      doc.roundedRect(margins.left, ay, contentWidth, notesBoxHeight, 2, 2, 'F');
+      doc.setDrawColor(255, 204, 128);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(margins.left, ay, contentWidth, notesBoxHeight, 2, 2, 'S');
+      
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(230, 81, 0);
+      doc.text('Notes', margins.left + 6, ay + 5);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(66, 66, 66);
+      const splitNotes = doc.splitTextToSize(notes, contentWidth - 12);
+      doc.text(splitNotes, margins.left + 6, ay + 12);
+      
+      ay += notesBoxHeight + 6;
     }
 
-    // Motif de rejet
-    if (transfer.status === 'rejected' && transfer.rejected_reason) {
-      const reasonLines = doc.splitTextToSize(transfer.rejected_reason, contentWidth - 10)
-      const reasonBoxH = Math.min(16, reasonLines.length * 4 + 8)
-      if (y + reasonBoxH < 270) {
-        doc.setFillColor('#fee2e2')
-        doc.rect(margins.left, y, contentWidth, reasonBoxH, 'F')
-        doc.setDrawColor(errorColor)
-        doc.setLineWidth(0.3)
-        doc.rect(margins.left, y, contentWidth, reasonBoxH, 'S')
-        
-        doc.setFontSize(7)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(errorColor)
-        doc.text('MOTIF DU REJET', margins.left + 4, y + 4)
-        
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(black)
-        doc.text(reasonLines, margins.left + 4, y + 8)
-        y += reasonBoxH + 4
-      }
+    // ================================================================
+    // MOTIF DE REJET
+    // ================================================================
+    if (data.status === 'rejected' && rejectedReason && typeof rejectedReason === 'string' && rejectedReason.trim()) {
+      const rejectBoxHeight = 20;
+      doc.setFillColor(255, 235, 238);
+      doc.roundedRect(margins.left, ay, contentWidth, rejectBoxHeight, 2, 2, 'F');
+      doc.setDrawColor(244, 67, 54);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(margins.left, ay, contentWidth, rejectBoxHeight, 2, 2, 'S');
+      
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(198, 40, 40);
+      doc.text('Motif du rejet', margins.left + 6, ay + 5);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(66, 66, 66);
+      const splitReject = doc.splitTextToSize(rejectedReason, contentWidth - 12);
+      doc.text(splitReject, margins.left + 6, ay + 12);
+      
+      ay += rejectBoxHeight + 6;
     }
 
-    // ============================================================
+    y = ay;
+
+    // ================================================================
     // SIGNATURES
-    // ============================================================
-    if (y + 25 < 280) {
-      const signatureY = y
-      
-      doc.setDrawColor(borderColor)
-      doc.setLineWidth(0.2)
-      doc.line(margins.left, signatureY, pageWidth - margins.right, signatureY)
-      y += 4
-      
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(black)
-      doc.text('SIGNATURES', pageWidth / 2, signatureY + 4, { align: 'center' })
-      
-      const signBoxW = (contentWidth - 10) / 2
-      
-      doc.setDrawColor(borderColor)
-      doc.setLineWidth(0.2)
-      doc.rect(margins.left, signatureY + 7, signBoxW, 18, 'S')
-      doc.setFontSize(6)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(gray)
-      doc.text('Cachet et signature de l\'agence source', margins.left + signBoxW / 2, signatureY + 13, { align: 'center' })
-      doc.text('Date: _____________', margins.left + signBoxW / 2, signatureY + 20, { align: 'center' })
-      
-      doc.rect(margins.left + signBoxW + 10, signatureY + 7, signBoxW, 18, 'S')
-      doc.text('Cachet et signature de l\'agence destination', margins.left + signBoxW + 10 + signBoxW / 2, signatureY + 13, { align: 'center' })
-      doc.text('Date: _____________', margins.left + signBoxW + 10 + signBoxW / 2, signatureY + 20, { align: 'center' })
-      
-      y = signatureY + 28
-    }
+    // ================================================================
+    const signatureY = y + 8;
+    const signatureWidth = 85;
+    const signatureX1 = margins.left;
+    const signatureX2 = pageWidth - margins.right - signatureWidth;
 
-    // ============================================================
+    doc.setDrawColor(66, 66, 66);
+    doc.setLineWidth(0.5);
+    doc.line(signatureX1, signatureY + 5, signatureX1 + signatureWidth, signatureY + 5);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(84, 110, 122);
+    doc.text('Signature agence source', signatureX1 + (signatureWidth / 2), signatureY, { align: 'center' });
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 144, 156);
+    doc.text('Cachet et signature', signatureX1 + (signatureWidth / 2), signatureY + 12, { align: 'center' });
+
+    doc.line(signatureX2, signatureY + 5, signatureX2 + signatureWidth, signatureY + 5);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(84, 110, 122);
+    doc.text('Signature agence destination', signatureX2 + (signatureWidth / 2), signatureY, { align: 'center' });
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 144, 156);
+    doc.text('Cachet et signature', signatureX2 + (signatureWidth / 2), signatureY + 12, { align: 'center' });
+
+    y = signatureY + 20;
+
+    // ================================================================
     // PIED DE PAGE
-    // ============================================================
-    const footerY = 287
-    doc.setDrawColor(borderColor)
-    doc.setLineWidth(0.2)
-    doc.line(margins.left, footerY - 8, pageWidth - margins.right, footerY - 8)
+    // ================================================================
+    const footerY = pageHeight - margins.bottom - 10;
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.line(margins.left, footerY - 5, pageWidth - margins.right, footerY - 5);
     
-    doc.setFontSize(7)
-    doc.setTextColor(gray)
-    doc.setFont('helvetica', 'normal')
-    doc.text('SEYDI GROUP SARL - Dakar, Sénégal - Tél: +221 33 123 45 67', pageWidth / 2, footerY - 4, { align: 'center' })
-    doc.text(`Document généré le ${formatDateTime(new Date())}`, pageWidth / 2, footerY, { align: 'center' })
-    doc.text('Ce document fait foi de transfert de stock entre les deux agences', pageWidth / 2, footerY + 4, { align: 'center' })
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 144, 156);
+    doc.text('SEYDI GROUP SARL - DAKAR, SÉNÉGAL', pageWidth / 2, footerY, { align: 'center' });
+    doc.text(`Tél: ${company.phone} - Email: ${company.email}`, pageWidth / 2, footerY + 4, { align: 'center' });
+    doc.text(`RCCM: ${company.rccm} - Capital: ${company.capital}`, pageWidth / 2, footerY + 8, { align: 'center' });
+    doc.text(`Généré le ${formatDateTime(new Date().toISOString())}`, pageWidth / 2, footerY + 12, { align: 'center' });
 
-    const pageCount = doc.internal.getNumberOfPages()
+    // ================================================================
+    // NUMÉROTATION DES PAGES ET FILIGRANE FINAL
+    // ================================================================
+    const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-      doc.setFontSize(7)
-      doc.setTextColor(gray)
-      doc.text(`Page ${i}/${pageCount}`, pageWidth - margins.right, footerY + 4, { align: 'right' })
+      doc.setPage(i);
+      addWatermark(doc, watermarkText, watermarkOptions);
+      doc.setFontSize(7);
+      doc.setTextColor(160, 160, 170);
+      doc.text(`Page ${i}/${pageCount}`, pageWidth - margins.right, pageHeight - margins.bottom, { align: 'right' });
     }
 
-    doc.save(`Transfert_${transfer.reference || 'transfert'}.pdf`)
-    return true
+    doc.save(`Transfert_${reference}.pdf`);
+    return true;
 
   } catch (error) {
-    console.error('Erreur TransfertPdf:', error)
-    throw error
+    console.error('Erreur TransfertPDF:', error);
+    throw error;
   }
-}
+};
 
-export default TransfertPdf
+// ========== FONCTION DE TÉLÉCHARGEMENT ==========
+export const downloadTransfertPDF = async (transfer, filename = null) => {
+  try {
+    if (!transfer || typeof transfer !== 'object') {
+      throw new Error('Les données du transfert sont invalides');
+    }
+
+    const result = await TransfertPDF(transfer);
+    return result;
+  } catch (error) {
+    console.error('Erreur lors du téléchargement du bon de transfert :', error);
+    throw error;
+  }
+};
+
+// Export par défaut
+export default TransfertPDF;

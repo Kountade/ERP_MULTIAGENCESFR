@@ -1,269 +1,56 @@
-// src/components/achats/ReceptionsListePDF.jsx
-
-import React from 'react';
-import {
-  Document,
-  Page,
-  Text,
-  View,
-  StyleSheet,
-  Font,
-  Image
-} from '@react-pdf/renderer';
+// src/components/achats/ReceptionsListePDF.js
+import jsPDF from 'jspdf';
 import logoSvg from '../../assets/logo.svg';
 
-// Enregistrer les polices
-Font.register({
-  family: 'Helvetica',
-  fonts: [
-    { 
-      src: 'https://fonts.gstatic.com/s/opensans/v18/mem8YaGs126MiZpBA-UFVZ0b.woff2',
-      fontWeight: 'normal'
-    },
-    {
-      src: 'https://fonts.gstatic.com/s/opensans/v18/mem8YaGs126MiZpBA-UFVZ0e.woff2',
-      fontWeight: 'bold'
-    }
-  ]
-});
-
-// Styles
-const styles = StyleSheet.create({
-  page: {
-    padding: 40,
-    fontSize: 10,
-    fontFamily: 'Helvetica',
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 2,
-    borderBottomColor: '#1a237e',
-    borderBottomStyle: 'solid',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logo: {
-    width: 50,
-    height: 50,
-    marginRight: 12,
-  },
-  companyInfo: {
-    flexDirection: 'column',
-  },
-  companyName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    fontFamily: 'Helvetica',
-    letterSpacing: 1,
-  },
-  companySub: {
-    fontSize: 8,
-    color: '#546e7a',
-    marginTop: 1,
-  },
-  headerRight: {
-    textAlign: 'right',
-  },
-  documentTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    fontFamily: 'Helvetica',
-    letterSpacing: 2,
-  },
-  documentRef: {
-    fontSize: 9,
-    color: '#546e7a',
-    marginTop: 2,
-  },
-  filterInfo: {
-    fontSize: 9,
-    marginBottom: 15,
-    color: '#546e7a',
-    backgroundColor: '#f5f5f5',
-    padding: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderStyle: 'solid',
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    marginTop: 10,
-    marginBottom: 8,
-    paddingBottom: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    borderBottomStyle: 'solid',
-    fontFamily: 'Helvetica',
-    letterSpacing: 0.5,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#e8eaf6',
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderBottomWidth: 2,
-    borderBottomColor: '#c5cae9',
-    borderBottomStyle: 'solid',
-    marginTop: 5,
-  },
-  tableHeaderText: {
-    fontSize: 8,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#e0e0e0',
-    borderBottomStyle: 'solid',
-    backgroundColor: '#FFFFFF',
-  },
-  tableRowAlt: {
-    flexDirection: 'row',
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#e0e0e0',
-    borderBottomStyle: 'solid',
-    backgroundColor: '#fafafa',
-  },
-  colNum: { width: '8%' },
-  colReceipt: { width: '18%' },
-  colOrder: { width: '18%' },
-  colSupplier: { width: '22%' },
-  colDate: { width: '15%', textAlign: 'center' },
-  colAmount: { width: '19%', textAlign: 'right' },
-  colText: {
-    fontSize: 9,
-    color: '#424242',
-  },
-  colTextBold: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    color: '#1a237e',
-  },
-  statsBox: {
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderStyle: 'solid',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statsItem: {
-    textAlign: 'center',
-  },
-  statsLabel: {
-    fontSize: 8,
-    color: '#78909c',
-  },
-  statsValue: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    marginTop: 2,
-  },
-  totalBox: {
-    marginTop: 15,
-    padding: 12,
-    backgroundColor: '#e8eaf6',
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#c5cae9',
-    borderStyle: 'solid',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  totalLabel: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    fontFamily: 'Helvetica',
-  },
-  totalValue: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    fontFamily: 'Helvetica',
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    borderTopStyle: 'solid',
-    paddingTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  footerText: {
-    fontSize: 7,
-    color: '#78909c',
-  },
-  signature: {
-    marginTop: 20,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  signatureBlock: {
-    textAlign: 'center',
-    marginLeft: 40,
-  },
-  signatureLine: {
-    width: 120,
-    borderBottomWidth: 1,
-    borderBottomColor: '#424242',
-    borderBottomStyle: 'solid',
-    marginBottom: 4,
-  },
-  signatureLabel: {
-    fontSize: 8,
-    color: '#546e7a',
-  },
-  watermark: {
-    position: 'absolute',
-    bottom: 150,
-    left: 50,
-    right: 50,
-    textAlign: 'center',
-    fontSize: 40,
-    color: 'rgba(26, 35, 126, 0.03)',
-    fontFamily: 'Helvetica',
-    transform: 'rotate(-30deg)',
-  },
-});
-
-// Formatage
-const formatXOF = (amount) => {
-  if (amount === null || amount === undefined || isNaN(amount)) return '0 FCFA';
-  let num = typeof amount === 'string' ? parseFloat(amount.replace(/,/g, '')) : amount;
-  if (isNaN(num) || num === 0) return '0 FCFA';
-  const formatted = Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return `${formatted} FCFA`;
+// ========== FONCTIONS DE FORMATAGE ==========
+const formatNumber = (n) => {
+  const num = parseFloat(n) || 0;
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 };
 
+const formatCurrency = (amt) => {
+  const num = parseFloat(amt) || 0;
+  return `${formatNumber(num)} FCFA`;
+};
+
+const formatDate = (d) => {
+  if (!d) return '-';
+  try {
+    let date;
+    if (typeof d === 'string' && d.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = d.split('-').map(Number);
+      date = new Date(year, month - 1, day);
+    } else {
+      date = new Date(d);
+    }
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  } catch {
+    return '-';
+  }
+};
+
+const formatDateTime = (d) => {
+  if (!d) return '-';
+  try {
+    const date = new Date(d);
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return d;
+  }
+};
+
+// ========== FONCTIONS POUR EXTRAIRE LES VALEURS ==========
 const getTotalValue = (reception) => {
   if (!reception) return 0;
   let total = parseFloat(reception.total_value) || 0;
@@ -282,197 +69,551 @@ const getTotalCosts = (reception) => {
   return isNaN(costs) ? 0 : costs;
 };
 
-const formatDate = (dateString) => {
-  if (!dateString) return '-';
-  try {
-    let date;
-    if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      const [year, month, day] = dateString.split('-').map(Number);
-      date = new Date(year, month - 1, day);
-    } else {
-      date = new Date(dateString);
-    }
-    if (isNaN(date.getTime())) return '-';
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
+const getItemCount = (reception) => {
+  if (!reception) return 0;
+  return reception.items?.length || 0;
+};
+
+// ========== FONCTION POUR AJOUTER UN FILIGRANE OBLIQUE ==========
+const addWatermark = (doc, text, options = {}) => {
+  const {
+    fontSize = 40,
+    color = [200, 200, 200],
+    opacity = 0.08,
+    angle = -45,
+    repeat = true,
+    spacing = 100
+  } = options;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  
+  const currentFontSize = doc.internal.getFontSize();
+  const currentTextColor = doc.internal.getTextColor();
+  
+  doc.setFontSize(fontSize);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(color[0], color[1], color[2]);
+  
+  doc.setGState(new doc.GState({ opacity: opacity }));
+  
+  const diagonal = Math.sqrt(pageWidth * pageWidth + pageHeight * pageHeight);
+  const textWidth = doc.getTextWidth(text);
+  
+  const numX = Math.ceil((diagonal + textWidth) / (textWidth + spacing));
+  const numY = Math.ceil(diagonal / spacing);
+  
+  const offsetX = (pageWidth - numX * (textWidth + spacing)) / 2;
+  const offsetY = (pageHeight - numY * spacing) / 2;
+  
+  if (!repeat) {
+    const centerX = pageWidth / 2;
+    const centerY = pageHeight / 2;
+    doc.text(text, centerX, centerY, { 
+      align: 'center',
+      angle: angle,
+      baseline: 'middle'
     });
-  } catch {
-    return '-';
+  } else {
+    for (let i = 0; i < numY; i++) {
+      for (let j = 0; j < numX; j++) {
+        const x = offsetX + j * (textWidth + spacing);
+        const y = offsetY + i * spacing;
+        doc.text(text, x, y, {
+          angle: angle,
+          baseline: 'middle'
+        });
+      }
+    }
+  }
+  
+  doc.setFontSize(currentFontSize);
+  doc.setTextColor(currentTextColor[0], currentTextColor[1], currentTextColor[2]);
+  doc.setGState(new doc.GState({ opacity: 1 }));
+};
+
+// ========== COMPOSANT PRINCIPAL ==========
+const ReceptionsListePDF = async (receptions, filters = {}, options = {}) => {
+  if (!receptions || !Array.isArray(receptions)) {
+    throw new Error('Les données des réceptions sont invalides');
+  }
+
+  try {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margins = { left: 15, right: 15, top: 18, bottom: 18 };
+    const contentWidth = pageWidth - margins.left - margins.right;
+    let y = margins.top;
+
+    // ========== INFORMATIONS DE L'ENTREPRISE ==========
+    const company = {
+      name: 'BUROK GROUP',
+      address: 'Dakar, Sénégal',
+      phone: '+221 33 800 00 00',
+      email: 'contact@burokgroup.sn',
+      rccm: '2025/G/001',
+      nif: '123456789',
+      capital: '50 000 000 '
+    };
+
+    // ========== ANALYSE DES DONNÉES ==========
+    const receipts = receptions || [];
+    
+    // Calcul des totaux
+    const totalValue = receipts.reduce((sum, r) => sum + getTotalValue(r), 0);
+    const totalCosts = receipts.reduce((sum, r) => sum + getTotalCosts(r), 0);
+    const grandTotal = totalValue + totalCosts;
+    const totalItems = receipts.reduce((sum, r) => sum + getItemCount(r), 0);
+
+    // Construction du libellé du filtre
+    let filterLabel = 'Toutes les réceptions';
+    let filterDetails = [];
+
+    if (filters.searchTerm) {
+      filterDetails.push(`🔍 Recherche: "${filters.searchTerm}"`);
+    }
+
+    if (filters.dateRange?.start && filters.dateRange?.end) {
+      filterDetails.push(`📅 Du ${formatDate(filters.dateRange.start)} au ${formatDate(filters.dateRange.end)}`);
+    } else if (filters.dateRange?.start) {
+      filterDetails.push(`📅 À partir du ${formatDate(filters.dateRange.start)}`);
+    } else if (filters.dateRange?.end) {
+      filterDetails.push(`📅 Jusqu'au ${formatDate(filters.dateRange.end)}`);
+    }
+
+    if (filters.supplierName) {
+      filterDetails.push(`🏢 Fournisseur: ${filters.supplierName}`);
+    }
+
+    filterDetails.push(`📊 ${receipts.length} réception(s) trouvée(s)`);
+    filterDetails.push(`💰 Montant total: ${formatCurrency(grandTotal)}`);
+
+    // ========== CHARGEMENT DU LOGO ==========
+    const loadLogo = (src) => new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+    let logoData = null;
+    try { logoData = await loadLogo(logoSvg); } catch { /* ignore */ }
+
+    // Filigrane
+    const watermarkText = options.watermark || 'LISTE DES RÉCEPTIONS';
+    const watermarkOptions = {
+      fontSize: options.watermarkSize || 40,
+      color: options.watermarkColor || [200, 200, 200],
+      opacity: options.watermarkOpacity || 0.08,
+      angle: options.watermarkAngle || -45,
+      repeat: options.watermarkRepeat !== undefined ? options.watermarkRepeat : true,
+      spacing: options.watermarkSpacing || 100
+    };
+
+    // ================================================================
+    // EN-TÊTE
+    // ================================================================
+    const logoWidth = 26;
+    const logoHeight = 26;
+    
+    if (logoData) {
+      doc.addImage(logoData, 'PNG', margins.left, y, logoWidth, logoHeight);
+    }
+
+    const textStartX = margins.left + logoWidth + 7;
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text(company.name, textStartX, y + 6);
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(84, 110, 122);
+    doc.text(`S.A.R.L au capital de ${company.capital}`, textStartX, y + 12);
+    doc.text(`RC: ${company.rccm} - NIF: ${company.nif}`, textStartX, y + 17);
+    doc.text(company.address.toUpperCase(), textStartX, y + 22);
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text('LISTE DES RÉCEPTIONS', pageWidth - margins.right, y + 6, { align: 'right' });
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(84, 110, 122);
+    doc.text(filterLabel, pageWidth - margins.right, y + 12, { align: 'right' });
+    doc.text(`Généré le ${formatDateTime(new Date().toISOString())}`, pageWidth - margins.right, y + 17, { align: 'right' });
+
+    y += 30;
+    doc.setDrawColor(26, 35, 126);
+    doc.setLineWidth(0.4);
+    doc.line(margins.left, y, pageWidth - margins.right, y);
+    y += 8;
+
+    // ================================================================
+    // INFORMATIONS DE FILTRE
+    // ================================================================
+    if (filterDetails.length > 0) {
+      const filterHeight = 8 + (filterDetails.length * 5);
+      doc.setFillColor(245, 245, 245);
+      doc.roundedRect(margins.left, y, contentWidth, filterHeight, 2, 2, 'F');
+      doc.setDrawColor(224, 224, 224);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(margins.left, y, contentWidth, filterHeight, 2, 2, 'S');
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(84, 110, 122);
+      
+      let filterY = y + 4;
+      for (let idx = 0; idx < filterDetails.length; idx++) {
+        doc.text(filterDetails[idx], margins.left + 6, filterY);
+        filterY += 5;
+      }
+      
+      y += filterHeight + 6;
+    }
+
+    // ================================================================
+    // STATISTIQUES
+    // ================================================================
+    const statsY = y;
+    const statsHeight = 22;
+    doc.setFillColor(245, 245, 245);
+    doc.roundedRect(margins.left, statsY, contentWidth, statsHeight, 2, 2, 'F');
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margins.left, statsY, contentWidth, statsHeight, 2, 2, 'S');
+
+    const statColWidth = contentWidth / 5;
+    const statX1 = margins.left;
+    const statX2 = margins.left + statColWidth;
+    const statX3 = margins.left + statColWidth * 2;
+    const statX4 = margins.left + statColWidth * 3;
+    const statX5 = margins.left + statColWidth * 4;
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(120, 144, 156);
+    
+    doc.text('Total réceptions', statX1 + 6, statsY + 7);
+    doc.text('Articles reçus', statX2 + 6, statsY + 7);
+    doc.text('Valeur totale', statX3 + 6, statsY + 7);
+    doc.text('Frais totaux', statX4 + 6, statsY + 7);
+    doc.text('Total général', statX5 + 6, statsY + 7);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text(receipts.length.toString(), statX1 + 6, statsY + 16);
+    doc.setTextColor(76, 175, 80);
+    doc.text(totalItems.toString(), statX2 + 6, statsY + 16);
+    doc.setTextColor(26, 35, 126);
+    doc.text(formatCurrency(totalValue), statX3 + 6, statsY + 16);
+    doc.setTextColor(255, 152, 0);
+    doc.text(formatCurrency(totalCosts), statX4 + 6, statsY + 16);
+    doc.setTextColor(46, 125, 50);
+    doc.text(formatCurrency(grandTotal), statX5 + 6, statsY + 16);
+
+    y = statsY + statsHeight + 8;
+
+    // ================================================================
+    // TABLEAU
+    // ================================================================
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(26, 35, 126);
+    doc.text('DÉTAIL DES RÉCEPTIONS', margins.left, y);
+    y += 2;
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.line(margins.left, y, pageWidth - margins.right, y);
+    y += 6;
+
+    if (receipts.length === 0) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(120, 144, 156);
+      doc.text('Aucune réception ne correspond à votre recherche', pageWidth / 2, y + 10, { align: 'center' });
+      y += 20;
+    } else {
+      // Colonnes
+      const colNumX = margins.left;
+      const colReceiptX = margins.left + 18;
+      const colOrderX = margins.left + 48;
+      const colSupplierX = margins.left + 88;
+      const colDateX = margins.left + 130;
+      const colAmountX = pageWidth - margins.right - 2;
+
+      // En-tête du tableau
+      const headerY = y;
+      doc.setFillColor(232, 234, 246);
+      doc.rect(colNumX, headerY, contentWidth, 7, 'F');
+      doc.setDrawColor(197, 202, 233);
+      doc.setLineWidth(0.5);
+      doc.line(colNumX, headerY + 7, pageWidth - margins.right, headerY + 7);
+
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(26, 35, 126);
+      doc.text('N°', colNumX + 3, headerY + 4.5);
+      doc.text('N° Réception', colReceiptX + 3, headerY + 4.5);
+      doc.text('Commande', colOrderX + 3, headerY + 4.5);
+      doc.text('Fournisseur', colSupplierX + 3, headerY + 4.5);
+      doc.text('Date', colDateX + 3, headerY + 4.5);
+      doc.text('Total', colAmountX - 3, headerY + 4.5, { align: 'right' });
+
+      y = headerY + 7;
+      let currentY = y;
+      let rowIndex = 0;
+
+      for (let idx = 0; idx < receipts.length; idx++) {
+        const receipt = receipts[idx];
+        const total = getTotalValue(receipt) + getTotalCosts(receipt);
+
+        if (currentY > pageHeight - 60) {
+          doc.addPage();
+          addWatermark(doc, watermarkText, watermarkOptions);
+          
+          currentY = margins.top;
+          doc.setFillColor(232, 234, 246);
+          doc.rect(colNumX, currentY, contentWidth, 7, 'F');
+          doc.setDrawColor(197, 202, 233);
+          doc.setLineWidth(0.5);
+          doc.line(colNumX, currentY + 7, pageWidth - margins.right, currentY + 7);
+
+          doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(26, 35, 126);
+          doc.text('N°', colNumX + 3, currentY + 4.5);
+          doc.text('N° Réception', colReceiptX + 3, currentY + 4.5);
+          doc.text('Commande', colOrderX + 3, currentY + 4.5);
+          doc.text('Fournisseur', colSupplierX + 3, currentY + 4.5);
+          doc.text('Date', colDateX + 3, currentY + 4.5);
+          doc.text('Total', colAmountX - 3, currentY + 4.5, { align: 'right' });
+          currentY += 7;
+        }
+
+        // Alternance des couleurs
+        if (rowIndex % 2 === 0) {
+          doc.setFillColor(255, 255, 255);
+          doc.rect(colNumX, currentY - 0.5, contentWidth, 6.5, 'F');
+        } else {
+          doc.setFillColor(250, 250, 250);
+          doc.rect(colNumX, currentY - 0.5, contentWidth, 6.5, 'F');
+        }
+
+        doc.setDrawColor(224, 224, 224);
+        doc.setLineWidth(0.1);
+        doc.line(colNumX, currentY, pageWidth - margins.right, currentY);
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(66, 66, 66);
+        
+        // N°
+        doc.text((idx + 1).toString(), colNumX + 3, currentY + 4);
+        
+        // N° Réception
+        doc.text(receipt.receipt_number || '-', colReceiptX + 3, currentY + 4);
+        
+        // Commande
+        doc.text(receipt.order_number || receipt.purchase_order?.order_number || '-', colOrderX + 3, currentY + 4);
+        
+        // Fournisseur
+        const supplierName = receipt.supplier_name || receipt.purchase_order?.supplier?.company_name || '-';
+        const supplierMaxWidth = colDateX - colSupplierX - 6;
+        let supplierText = supplierName;
+        if (doc.getTextWidth(supplierName) > supplierMaxWidth) {
+          supplierText = supplierName.substring(0, Math.floor(supplierMaxWidth / 3.5)) + '...';
+        }
+        doc.text(supplierText, colSupplierX + 3, currentY + 4);
+        
+        // Date
+        doc.text(formatDate(receipt.receipt_date), colDateX + 3, currentY + 4);
+        
+        // Total
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(26, 35, 126);
+        const amountText = formatCurrency(total);
+        const amountMaxWidth = colAmountX - colDateX - 6;
+        if (doc.getTextWidth(amountText) > amountMaxWidth) {
+          doc.setFontSize(6.5);
+          doc.text(amountText, colAmountX - 3, currentY + 4, { align: 'right' });
+          doc.setFontSize(8);
+        } else {
+          doc.text(amountText, colAmountX - 3, currentY + 4, { align: 'right' });
+        }
+
+        currentY += 6.5;
+        rowIndex++;
+      }
+
+      doc.setDrawColor(180, 180, 190);
+      doc.setLineWidth(0.3);
+      doc.line(colNumX, currentY, pageWidth - margins.right, currentY);
+      y = currentY + 5;
+
+      // ================================================================
+      // TOTAL
+      // ================================================================
+      const totalBoxHeight = 16;
+      doc.setFillColor(232, 234, 246);
+      doc.roundedRect(margins.left, y, contentWidth, totalBoxHeight, 2, 2, 'F');
+      doc.setDrawColor(197, 202, 233);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(margins.left, y, contentWidth, totalBoxHeight, 2, 2, 'S');
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(26, 35, 126);
+      doc.text(`Total: ${receipts.length} réception(s)`, margins.left + 8, y + 11);
+
+      const totalFormatted = formatCurrency(grandTotal);
+      doc.setFontSize(12);
+      let fontSizeTotal = 12;
+      let textWidthTotal = doc.getTextWidth(totalFormatted);
+      if (textWidthTotal > 70) {
+        fontSizeTotal = 10;
+        doc.setFontSize(fontSizeTotal);
+        if (doc.getTextWidth(totalFormatted) > 70) {
+          fontSizeTotal = 8;
+          doc.setFontSize(fontSizeTotal);
+        }
+      }
+      doc.text(totalFormatted, pageWidth - margins.right - 8, y + 11, { align: 'right' });
+
+      y += totalBoxHeight + 8;
+
+      // ================================================================
+      // RÉSUMÉ
+      // ================================================================
+      const summaryHeight = 16;
+      doc.setFillColor(245, 245, 245);
+      doc.roundedRect(margins.left, y, contentWidth, summaryHeight, 2, 2, 'F');
+
+      const summaryColWidth = contentWidth / 3;
+      const sX1 = margins.left;
+      const sX2 = margins.left + summaryColWidth;
+      const sX3 = margins.left + summaryColWidth * 2;
+
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(26, 35, 126);
+      doc.text('RÉSUMÉ', margins.left + 6, y + 6);
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120, 144, 156);
+      
+      doc.text('Articles reçus', sX1 + 6, y + 13);
+      doc.text('Valeur totale', sX2 + 6, y + 13);
+      doc.text('Frais totaux', sX3 + 6, y + 13);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(76, 175, 80);
+      doc.text(totalItems.toString(), sX1 + 6, y + 15);
+      doc.setTextColor(26, 35, 126);
+      doc.text(formatCurrency(totalValue), sX2 + 6, y + 15);
+      doc.setTextColor(255, 152, 0);
+      doc.text(formatCurrency(totalCosts), sX3 + 6, y + 15);
+
+      y += summaryHeight + 8;
+    }
+
+    // ================================================================
+    // SIGNATURES
+    // ================================================================
+    const signatureY = y + 8;
+    const signatureWidth = 80;
+    const signatureX1 = margins.left;
+    const signatureX2 = pageWidth - margins.right - signatureWidth;
+
+    doc.setDrawColor(66, 66, 66);
+    doc.setLineWidth(0.5);
+    doc.line(signatureX1, signatureY + 5, signatureX1 + signatureWidth, signatureY + 5);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(84, 110, 122);
+    doc.text('Signature du responsable', signatureX1 + (signatureWidth / 2), signatureY, { align: 'center' });
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 144, 156);
+    doc.text(`Date: ${formatDate(new Date().toISOString())}`, signatureX1 + (signatureWidth / 2), signatureY + 12, { align: 'center' });
+
+    doc.line(signatureX2, signatureY + 5, signatureX2 + signatureWidth, signatureY + 5);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(84, 110, 122);
+    doc.text('Signature SEYDI GROUP', signatureX2 + (signatureWidth / 2), signatureY, { align: 'center' });
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 144, 156);
+    doc.text('Responsable logistique', signatureX2 + (signatureWidth / 2), signatureY + 12, { align: 'center' });
+
+    y = signatureY + 20;
+
+    // ================================================================
+    // PIED DE PAGE
+    // ================================================================
+    const footerY = pageHeight - margins.bottom - 10;
+    doc.setDrawColor(224, 224, 224);
+    doc.setLineWidth(0.5);
+    doc.line(margins.left, footerY - 5, pageWidth - margins.right, footerY - 5);
+    
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 144, 156);
+    doc.text(`${company.name} - ${company.address}`, pageWidth / 2, footerY, { align: 'center' });
+    doc.text(`Tél: ${company.phone} - Email: ${company.email}`, pageWidth / 2, footerY + 4, { align: 'center' });
+    doc.text(`RC: ${company.rccm} - NIF: ${company.nif}`, pageWidth / 2, footerY + 8, { align: 'center' });
+
+    // ================================================================
+    // NUMÉROTATION DES PAGES ET FILIGRANE FINAL
+    // ================================================================
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      addWatermark(doc, watermarkText, watermarkOptions);
+      doc.setFontSize(7);
+      doc.setTextColor(160, 160, 170);
+      doc.text(`Page ${i}/${pageCount}`, pageWidth - margins.right, pageHeight - margins.bottom, { align: 'right' });
+    }
+
+    const filename = options.filename || `Liste_receptions_${formatDate(new Date().toISOString())}.pdf`;
+    doc.save(filename);
+    return true;
+
+  } catch (error) {
+    console.error('Erreur ReceptionsListePDF:', error);
+    throw error;
   }
 };
 
-// Composant principal
-const ReceptionsListePDF = ({ receptions, filters = {} }) => {
-  const receipts = receptions || [];
-  
-  // Calcul des totaux
-  const totalValue = receipts.reduce((sum, r) => sum + getTotalValue(r), 0);
-  const totalCosts = receipts.reduce((sum, r) => sum + getTotalCosts(r), 0);
-  const grandTotal = totalValue + totalCosts;
-  const itemCount = receipts.reduce((sum, r) => sum + (r.items?.length || 0), 0);
+// ========== FONCTION DE TÉLÉCHARGEMENT ==========
+export const downloadReceptionsListePDF = async (receptions, filters = {}, filename = null) => {
+  try {
+    if (!receptions || !Array.isArray(receptions)) {
+      throw new Error('Les données des réceptions sont invalides');
+    }
 
-  // Construire le libellé du filtre
-  let filterLabel = 'Toutes les réceptions';
-  let filterDetails = [];
-  
-  if (filters.searchTerm) {
-    filterDetails.push(`🔍 Recherche: "${filters.searchTerm}"`);
+    const options = { ...filters };
+    if (filename) options.filename = filename;
+    
+    const result = await ReceptionsListePDF(receptions, filters, options);
+    return result;
+  } catch (error) {
+    console.error('Erreur lors du téléchargement de la liste des réceptions :', error);
+    throw error;
   }
-  
-  if (filters.dateRange?.start && filters.dateRange?.end) {
-    filterDetails.push(`📅 Du ${formatDate(filters.dateRange.start)} au ${formatDate(filters.dateRange.end)}`);
-  } else if (filters.dateRange?.start) {
-    filterDetails.push(`📅 À partir du ${formatDate(filters.dateRange.start)}`);
-  } else if (filters.dateRange?.end) {
-    filterDetails.push(`📅 Jusqu'au ${formatDate(filters.dateRange.end)}`);
-  }
-
-  filterDetails.push(`📊 ${receipts.length} réception(s) trouvée(s)`);
-  filterDetails.push(`💰 Montant total: ${formatXOF(grandTotal)}`);
-
-  return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        <Text style={styles.watermark}>LISTE DES RÉCEPTIONS</Text>
-
-        {/* En-tête */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Image src={logoSvg} style={styles.logo} />
-            <View style={styles.companyInfo}>
-              <Text style={styles.companyName}>SEYDI GROUP</Text>
-              <Text style={styles.companySub}>S.A.R.L au capital de 50 000 000 FCFA</Text>
-              <Text style={styles.companySub}>RC: 2025/G/001 - NIF: 123456789</Text>
-              <Text style={styles.companySub}>Dakar, Sénégal</Text>
-            </View>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.documentTitle}>LISTE DES RÉCEPTIONS</Text>
-            <Text style={styles.documentRef}>{filterLabel}</Text>
-            <Text style={styles.documentRef}>
-              Généré le {new Date().toLocaleDateString('fr-FR')} à {new Date().toLocaleTimeString('fr-FR')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Informations de filtre */}
-        {filterDetails.length > 0 && (
-          <View style={styles.filterInfo}>
-            {filterDetails.map((detail, index) => (
-              <Text key={index} style={{ marginBottom: index < filterDetails.length - 1 ? 2 : 0 }}>
-                {detail}
-              </Text>
-            ))}
-          </View>
-        )}
-
-        {/* Statistiques */}
-        <View style={styles.statsBox}>
-          <View style={styles.statsItem}>
-            <Text style={styles.statsLabel}>Total réceptions</Text>
-            <Text style={styles.statsValue}>{receipts.length}</Text>
-          </View>
-          <View style={styles.statsItem}>
-            <Text style={styles.statsLabel}>Articles reçus</Text>
-            <Text style={styles.statsValue}>{itemCount}</Text>
-          </View>
-          <View style={styles.statsItem}>
-            <Text style={styles.statsLabel}>Valeur totale</Text>
-            <Text style={[styles.statsValue, { color: '#1a237e' }]}>{formatXOF(totalValue)}</Text>
-          </View>
-          <View style={styles.statsItem}>
-            <Text style={styles.statsLabel}>Frais totaux</Text>
-            <Text style={[styles.statsValue, { color: '#ff9800' }]}>{formatXOF(totalCosts)}</Text>
-          </View>
-          <View style={styles.statsItem}>
-            <Text style={styles.statsLabel}>Total général</Text>
-            <Text style={[styles.statsValue, { color: '#4caf50' }]}>{formatXOF(grandTotal)}</Text>
-          </View>
-        </View>
-
-        {/* Tableau */}
-        <Text style={styles.sectionTitle}>DÉTAIL DES RÉCEPTIONS</Text>
-
-        {receipts.length === 0 ? (
-          <Text style={{ padding: 20, textAlign: 'center', fontSize: 10, color: '#78909c' }}>
-            Aucune réception ne correspond à votre recherche
-          </Text>
-        ) : (
-          <>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderText, styles.colNum]}>N°</Text>
-              <Text style={[styles.tableHeaderText, styles.colReceipt]}>N° Réception</Text>
-              <Text style={[styles.tableHeaderText, styles.colOrder]}>Commande</Text>
-              <Text style={[styles.tableHeaderText, styles.colSupplier]}>Fournisseur</Text>
-              <Text style={[styles.tableHeaderText, styles.colDate]}>Date</Text>
-              <Text style={[styles.tableHeaderText, styles.colAmount]}>Total</Text>
-            </View>
-
-            {receipts.map((receipt, index) => {
-              const total = getTotalValue(receipt) + getTotalCosts(receipt);
-              return (
-                <View key={receipt.id || index} style={index % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
-                  <Text style={[styles.colText, styles.colNum]}>{index + 1}</Text>
-                  <Text style={[styles.colText, styles.colReceipt]}>
-                    {receipt.receipt_number || '-'}
-                  </Text>
-                  <Text style={[styles.colText, styles.colOrder]}>
-                    {receipt.order_number || receipt.purchase_order?.order_number || '-'}
-                  </Text>
-                  <Text style={[styles.colText, styles.colSupplier]}>
-                    {receipt.supplier_name || receipt.purchase_order?.supplier?.company_name || '-'}
-                  </Text>
-                  <Text style={[styles.colText, styles.colDate]}>
-                    {formatDate(receipt.receipt_date)}
-                  </Text>
-                  <Text style={[styles.colTextBold, styles.colAmount]}>
-                    {formatXOF(total)}
-                  </Text>
-                </View>
-              );
-            })}
-
-            {/* Ligne de total */}
-            <View style={styles.totalBox}>
-              <Text style={styles.totalLabel}>
-                Total: {receipts.length} réception(s)
-              </Text>
-              <Text style={styles.totalValue}>
-                {formatXOF(grandTotal)}
-              </Text>
-            </View>
-          </>
-        )}
-
-        {/* Signatures */}
-        <View style={styles.signature}>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>Signature du responsable</Text>
-            <Text style={{ fontSize: 7, color: '#78909c', marginTop: 2 }}>
-              Date: {new Date().toLocaleDateString('fr-FR')}
-            </Text>
-          </View>
-          <View style={styles.signatureBlock}>
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureLabel}>Signature SEYDI GROUP</Text>
-            <Text style={{ fontSize: 7, color: '#78909c', marginTop: 2 }}>
-              Responsable logistique
-            </Text>
-          </View>
-        </View>
-
-        {/* Pied de page */}
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>SEYDI GROUP - Dakar, Sénégal</Text>
-          <Text style={styles.footerText}>Tél: (+221) 33 800 00 00</Text>
-          <Text style={styles.footerText}>Page 1/1</Text>
-        </View>
-      </Page>
-    </Document>
-  );
 };
 
+// Export par défaut
 export default ReceptionsListePDF;

@@ -1,4 +1,6 @@
 // src/components/dashboard/Analyses.jsx
+// Version complète et professionnelle – Gestion robuste des erreurs API
+
 import React, { useEffect, useState, useMemo } from 'react';
 import AxiosInstance from '../AxiosInstance';
 import {
@@ -13,9 +15,12 @@ import {
 } from 'recharts';
 
 const Analyses = () => {
+  // ============================================================
+  // ÉTATS
+  // ============================================================
   const [loading, setLoading] = useState(true);
   const [ventes, setVentes] = useState([]);
-  const [monthlySales, setMonthlySales] = useState([]); // pour la tendance
+  const [monthlySales, setMonthlySales] = useState([]);
   const [topProducts, setTopProducts] = useState([]);
   const [statsData, setStatsData] = useState(null);
   const [period, setPeriod] = useState('12m');
@@ -24,29 +29,91 @@ const Analyses = () => {
 
   const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444'];
 
+  // ============================================================
+  // NOTIFICATION
+  // ============================================================
+  const showNotification = (message, type = 'success') => {
+    setNotification({ show: true, message, type });
+    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 4000);
+  };
+
+  // ============================================================
+  // CHARGEMENT DES DONNÉES (ROBUSTE AVEC allSettled)
+  // ============================================================
   const fetchAnalyses = async () => {
     setLoading(true);
+    let hasError = false;
+    const errors = [];
+
     try {
-      // Récupérer les données nécessaires pour chaque onglet
-      // 1. Tendance des ventes (6 mois)
-      const tendanceRes = await AxiosInstance.get('/analyses/tendance_ventes/');
-      const tendanceData = Array.isArray(tendanceRes.data) ? tendanceRes.data : [];
-      setMonthlySales(tendanceData);
+      const results = await Promise.allSettled([
+        AxiosInstance.get('/analyses/tendance_ventes/'),
+        AxiosInstance.get('/statistiques/top_produits/'),
+        AxiosInstance.get('/dashboard/overview/'),
+        AxiosInstance.get('/ventes/')
+      ]);
 
-      // 2. Top produits (pour l'onglet clients, on peut utiliser /statistiques/top_produits/)
-      const productsRes = await AxiosInstance.get('/statistiques/top_produits/');
-      setTopProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
+      const [tendanceRes, productsRes, overviewRes, ventesRes] = results;
 
-      // 3. Données générales (overview) pour les cartes
-      const overviewRes = await AxiosInstance.get('/dashboard/overview/');
-      setStatsData(overviewRes.data || {});
+      // --- 1. Tendance des ventes (tolère 403) ---
+      if (tendanceRes.status === 'fulfilled') {
+        setMonthlySales(Array.isArray(tendanceRes.value.data) ? tendanceRes.value.data : []);
+      } else {
+        const err = tendanceRes.reason;
+        // Erreur 403 = droits insuffisants → on ignore (pas d'erreur critique)
+        if (err.response && err.response.status === 403) {
+          console.warn('⚠️ Tendance non disponible (droits insuffisants)');
+          setMonthlySales([]);
+        } else {
+          hasError = true;
+          errors.push('tendance des ventes');
+          console.error('❌ Erreur tendance:', err);
+          setMonthlySales([]);
+        }
+      }
 
-      // 4. Récupérer la liste des ventes pour les statistiques (clients, etc.)
-      const ventesRes = await AxiosInstance.get('/ventes/');
-      setVentes(Array.isArray(ventesRes.data) ? ventesRes.data : []);
+      // --- 2. Top produits ---
+      if (productsRes.status === 'fulfilled') {
+        setTopProducts(Array.isArray(productsRes.value.data) ? productsRes.value.data : []);
+      } else {
+        hasError = true;
+        errors.push('top produits');
+        console.error('❌ Erreur top produits:', productsRes.reason);
+        setTopProducts([]);
+      }
 
+      // --- 3. Indicateurs généraux (overview) ---
+      if (overviewRes.status === 'fulfilled') {
+        setStatsData(overviewRes.value.data || {});
+      } else {
+        hasError = true;
+        errors.push('indicateurs généraux');
+        console.error('❌ Erreur overview:', overviewRes.reason);
+        setStatsData({});
+      }
+
+      // --- 4. Liste des ventes ---
+      if (ventesRes.status === 'fulfilled') {
+        setVentes(Array.isArray(ventesRes.value.data) ? ventesRes.value.data : []);
+      } else {
+        hasError = true;
+        errors.push('liste des ventes');
+        console.error('❌ Erreur ventes:', ventesRes.reason);
+        setVentes([]);
+      }
+
+      // --- Notification finale ---
+      if (hasError) {
+        const errorMsg = errors.length > 0
+          ? `Données manquantes : ${errors.join(', ')}.`
+          : 'Certaines données n’ont pas pu être chargées.';
+        showNotification(errorMsg, 'warning');
+      } else {
+        showNotification('Toutes les données sont à jour ✅', 'success');
+      }
     } catch (error) {
-      console.error('Erreur chargement analyses:', error);
+      // Cas théorique (allSettled ne reject jamais globalement)
+      console.error('❌ Erreur inattendue:', error);
       showNotification('Erreur de chargement des analyses', 'error');
     } finally {
       setLoading(false);
@@ -57,17 +124,17 @@ const Analyses = () => {
     fetchAnalyses();
   }, []);
 
-  const showNotification = (message, type = 'success') => {
-    setNotification({ show: true, message, type });
-    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 4000);
-  };
-
+  // ============================================================
+  // FORMATAGE DES PRIX
+  // ============================================================
   const formatPrice = (price) => {
-    if (!price) return '0 FCFA';
+    if (!price && price !== 0) return '0 FCFA';
     return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
   };
 
-  // Analyses calculées
+  // ============================================================
+  // ANALYSES MÉMOISÉES (calculs dérivés)
+  // ============================================================
   const analyses = useMemo(() => {
     const completed = ventes.filter(v => v.status === 'completed');
     const totalCA = completed.reduce((sum, v) => sum + (v.total || 0), 0);
@@ -78,7 +145,7 @@ const Analyses = () => {
     const previousMonth = monthly.length > 1 ? monthly[monthly.length - 2] : { total: 0 };
     const growth = previousMonth.total > 0 ? ((currentMonth.total - previousMonth.total) / previousMonth.total) * 100 : 0;
 
-    // Prévision (moyenne mobile sur 3 mois)
+    // Prévision (moyenne mobile 3 mois)
     const forecast = [];
     if (monthly.length >= 3) {
       const last3 = monthly.slice(-3);
@@ -86,7 +153,7 @@ const Analyses = () => {
       forecast.push({ mois: 'Prochain mois', total: avg });
     }
 
-    // Saisonnalité (par jour de semaine)
+    // Saisonnalité (jour de semaine)
     const dayOfWeek = [0, 0, 0, 0, 0, 0, 0];
     const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
     completed.forEach(v => {
@@ -136,6 +203,9 @@ const Analyses = () => {
     };
   }, [ventes, monthlySales]);
 
+  // ============================================================
+  // ÉCRAN DE CHARGEMENT
+  // ============================================================
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)]">
@@ -149,6 +219,9 @@ const Analyses = () => {
     );
   }
 
+  // ============================================================
+  // ONGLETS
+  // ============================================================
   const tabs = [
     { id: 'tendances', label: 'Tendances', icon: TrendingUp },
     { id: 'clients', label: 'Clients', icon: Users },
@@ -156,7 +229,9 @@ const Analyses = () => {
     { id: 'previsions', label: 'Prévisions', icon: Target },
   ];
 
-  // Fonction de rendu sécurisée pour chaque onglet
+  // ============================================================
+  // RENDU DU CONTENU DES ONGLETS
+  // ============================================================
   const renderTabContent = () => {
     switch (activeTab) {
       case 'tendances':
@@ -394,12 +469,18 @@ const Analyses = () => {
     }
   };
 
+  // ============================================================
+  // RENDU PRINCIPAL
+  // ============================================================
   return (
     <div className="space-y-4 lg:space-y-6 p-3 lg:p-6">
+      {/* Notification */}
       {notification.show && (
         <div className="fixed top-16 lg:top-20 right-3 lg:right-6 z-50 animate-slideDown w-[calc(100%-1.5rem)] lg:w-auto max-w-md">
-          <div className={`alert ${notification.type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg`}>
-            {notification.type === 'success' ? <CheckCircle className="w-4 h-4 lg:w-5 lg:h-5" /> : <AlertCircle className="w-4 h-4 lg:w-5 lg:h-5" />}
+          <div className={`alert shadow-lg ${notification.type === 'success' ? 'alert-success' : notification.type === 'warning' ? 'alert-warning' : 'alert-error'}`}>
+            {notification.type === 'success' && <CheckCircle className="w-4 h-4 lg:w-5 lg:h-5" />}
+            {notification.type === 'warning' && <AlertCircle className="w-4 h-4 lg:w-5 lg:h-5" />}
+            {notification.type === 'error' && <X className="w-4 h-4 lg:w-5 lg:h-5" />}
             <span className="text-sm lg:text-base font-medium">{notification.message}</span>
             <button className="btn btn-ghost btn-xs btn-circle" onClick={() => setNotification({ ...notification, show: false })}>
               <X className="w-3 h-3 lg:w-4 lg:h-4" />
@@ -408,6 +489,7 @@ const Analyses = () => {
         </div>
       )}
 
+      {/* En-tête */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-base-content">Analyses & Intelligence</h1>
@@ -425,6 +507,7 @@ const Analyses = () => {
         </div>
       </div>
 
+      {/* Cartes KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
         <div className="stat bg-base-100 rounded-lg lg:rounded-xl shadow-sm border border-base-300 p-2 lg:p-4">
           <div className="stat-figure text-primary"><DollarSign className="w-4 h-4 lg:w-5 lg:h-5" /></div>
@@ -450,6 +533,7 @@ const Analyses = () => {
         </div>
       </div>
 
+      {/* Barre d'onglets */}
       <div className="bg-base-100 rounded-xl shadow-sm border border-base-300 p-1">
         <div className="flex flex-wrap gap-1">
           {tabs.map(tab => {
@@ -468,6 +552,7 @@ const Analyses = () => {
         </div>
       </div>
 
+      {/* Contenu de l'onglet actif */}
       <div className="space-y-4">
         {renderTabContent()}
       </div>
