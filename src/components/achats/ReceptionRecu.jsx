@@ -229,13 +229,13 @@ const ReceptionRecu = async (reception, options = {}) => {
 
     // ========== INFORMATIONS DE L'ENTREPRISE ==========
     const company = {
-      name: 'BUROK GROUP',
+      name: 'SEYDI GROUP',
       address: 'Dakar, Sénégal',
       phone: '+221 33 800 00 00',
-      email: 'contact@burok',
+      email: 'contact@seydigroup.sn',
       rccm: '2025/G/001',
       nif: '123456789',
-      capital: '50 000 000'
+      capital: '50 000 000 FCFA'
     };
 
     // ========== DONNÉES DE LA RÉCEPTION ==========

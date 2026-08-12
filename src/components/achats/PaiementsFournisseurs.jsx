@@ -1,6 +1,6 @@
 // src/components/achats/PaiementsFournisseurs.jsx
 
-import React, { useState, useEffect, lazy, Suspense, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AxiosInstance from '../AxiosInstance';
 import {
@@ -35,12 +35,9 @@ import {
   FileSearch
 } from 'lucide-react';
 
-// Imports des composants PDF
-const PaiementFournisseurRecu = lazy(() => import('./PaiementsFournisseurRecu'));
-const PaiementsListePDF = lazy(() => import('./PaiementsListePDF'));
-
-// Import dynamique de pdf
-let pdfModule = null;
+// Imports des fonctions de génération de PDF (jsPDF)
+import { downloadPaiementFournisseurRecu } from './PaiementsFournisseurRecu';
+import { downloadPaiementsListePDF } from './PaiementsListePDF';
 
 const PaiementsFournisseurs = () => {
   const navigate = useNavigate();
@@ -56,7 +53,6 @@ const PaiementsFournisseurs = () => {
   const [sortOrder, setSortOrder] = useState('desc');
   const [pdfLoading, setPdfLoading] = useState({});
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
-  const [pdfReady, setPdfReady] = useState(false);
   
   // États pour les filtres
   const [filterType, setFilterType] = useState('all');
@@ -65,22 +61,6 @@ const PaiementsFournisseurs = () => {
   const [selectedInvoiceData, setSelectedInvoiceData] = useState(null);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-
-  // Charger les modules PDF
-  useEffect(() => {
-    const loadPDFModules = async () => {
-      try {
-        const renderer = await import('@react-pdf/renderer');
-        pdfModule = renderer;
-        setPdfReady(true);
-        console.log('✅ Modules PDF chargés avec succès');
-      } catch (error) {
-        console.warn('⚠️ Modules PDF non disponibles:', error.message);
-        setPdfReady(false);
-      }
-    };
-    loadPDFModules();
-  }, []);
 
   // Notification
   const showNotification = (message, type = 'success') => {
@@ -282,7 +262,7 @@ const PaiementsFournisseurs = () => {
     }
   };
 
-  // 📄 Télécharger le PDF des paiements filtrés
+  // 📄 Télécharger le PDF des paiements filtrés (jsPDF)
   const handleDownloadFilteredPayments = async () => {
     const filteredPayments = getFilteredPayments();
     
@@ -291,10 +271,8 @@ const PaiementsFournisseurs = () => {
       return;
     }
 
-    if (!pdfReady || !pdfModule) {
-      showNotification('Module PDF non disponible', 'error');
-      return;
-    }
+    // Éviter les téléchargements multiples
+    if (pdfLoading['filtered_history']) return;
 
     setPdfLoading(prev => ({ ...prev, ['filtered_history']: true }));
     try {
@@ -305,47 +283,21 @@ const PaiementsFournisseurs = () => {
         supplierName: selectedInvoiceData?.supplier?.company_name || ''
       };
 
-      const { default: ListePDF } = await import('./PaiementsListePDF');
-      const blob = await pdfModule.pdf(
-        <ListePDF paiements={filteredPayments} filters={filters} />
-      ).toBlob();
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      
-      let fileName = 'paiements';
-      if (searchTerm) {
-        fileName += `_recherche_${searchTerm.substring(0, 20)}`;
-      }
-      if (filterType === 'today') fileName += '_jour';
-      else if (filterType === 'month') fileName += '_mois';
-      else if (filterType === 'invoice' && selectedInvoiceData) {
-        fileName += `_facture_${selectedInvoiceData.invoice_number}`;
-      }
-      fileName += `_${new Date().toISOString().split('T')[0]}.pdf`;
-      
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      await downloadPaiementsListePDF(filteredPayments, filters);
       
       showNotification(`PDF téléchargé (${filteredPayments.length} paiements)`, 'success');
     } catch (error) {
       console.error('Erreur téléchargement PDF:', error);
-      showNotification('Erreur lors du téléchargement du PDF', 'error');
+      showNotification('Erreur lors du téléchargement du PDF: ' + error.message, 'error');
     } finally {
       setPdfLoading(prev => ({ ...prev, ['filtered_history']: false }));
     }
   };
 
-  // Télécharger le reçu PDF d'un paiement
+  // 📄 Télécharger le reçu PDF d'un paiement (jsPDF)
   const handleReceiptPDF = async (paiement) => {
-    if (!pdfReady || !pdfModule) {
-      showNotification('Module PDF non disponible', 'error');
-      return;
-    }
+    // Éviter les téléchargements multiples
+    if (pdfLoading[paiement.id]) return;
 
     setPdfLoading(prev => ({ ...prev, [paiement.id]: true }));
     try {
@@ -355,22 +307,12 @@ const PaiementsFournisseurs = () => {
         paymentData = response.data;
       }
       
-      const { default: ReceiptComponent } = await import('./PaiementsFournisseurRecu');
-      const blob = await pdfModule.pdf(<ReceiptComponent paiement={paymentData} />).toBlob();
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `recu_paiement_${paymentData.payment_number || paymentData.id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      await downloadPaiementFournisseurRecu(paymentData);
       
       showNotification('Reçu PDF téléchargé avec succès', 'success');
     } catch (error) {
       console.error('Erreur téléchargement PDF:', error);
-      showNotification('Erreur lors du téléchargement du PDF', 'error');
+      showNotification('Erreur lors du téléchargement du PDF: ' + error.message, 'error');
     } finally {
       setPdfLoading(prev => ({ ...prev, [paiement.id]: false }));
     }
@@ -612,7 +554,7 @@ const PaiementsFournisseurs = () => {
           <button
             className={`btn btn-sm gap-2 ${hasActiveFilters ? 'btn-info' : 'btn-outline'}`}
             onClick={handleDownloadFilteredPayments}
-            disabled={!pdfReady || pdfLoading['filtered_history']}
+            disabled={pdfLoading['filtered_history']}
           >
             {pdfLoading['filtered_history'] ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -820,14 +762,6 @@ const PaiementsFournisseurs = () => {
         </div>
       </div>
 
-      {/* Indicateur PDF */}
-      {!pdfReady && (
-        <div className="alert alert-warning shadow-lg text-sm mb-4">
-          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span>Module PDF non disponible - Installation en cours...</span>
-        </div>
-      )}
-
       {/* Tableau */}
       <div className="bg-base-100 rounded-xl shadow-lg border border-base-200 overflow-hidden">
         {filteredAndSortedPaiements.length === 0 ? (
@@ -998,12 +932,12 @@ const PaiementsFournisseurs = () => {
                             </button>
                             
                             <button
-                              className={`btn btn-ghost btn-sm btn-square ${pdfReady ? 'hover:bg-success/10' : 'opacity-30'} transition-colors`}
-                              title={pdfReady ? "Télécharger le reçu PDF" : "PDF non disponible"}
+                              className="btn btn-ghost btn-sm btn-square hover:bg-success/10 transition-colors"
+                              title="Télécharger le reçu PDF"
                               onClick={() => handleReceiptPDF(p)}
-                              disabled={!pdfReady || isPdfLoading}
+                              disabled={isPdfLoading}
                             >
-                              {isPdfLoading && pdfLoading[p.id] ? (
+                              {isPdfLoading ? (
                                 <Loader2 className="w-4 h-4 animate-spin text-success" />
                               ) : (
                                 <Download className="w-4 h-4 text-success" />
@@ -1091,12 +1025,6 @@ const PaiementsFournisseurs = () => {
               <Search className="w-3 h-3" />
               <span>Recherche: "{searchTerm}"</span>
               <span className="badge badge-ghost badge-xs">{filteredCount} résultats</span>
-            </div>
-          )}
-          {!pdfReady && (
-            <div className="flex items-center gap-1 text-warning">
-              <AlertTriangle className="w-3 h-3" />
-              <span>PDF non disponible</span>
             </div>
           )}
         </div>

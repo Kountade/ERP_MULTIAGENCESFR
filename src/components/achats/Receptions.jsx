@@ -33,15 +33,13 @@ import {
   TrendingUp,
   Users,
   Download,
-  FileSearch
+  FileSearch,
+  Loader2
 } from 'lucide-react'
 
-// Imports des composants PDF
-const ReceptionRecu = React.lazy(() => import('./ReceptionRecu'));
-const ReceptionsListePDF = React.lazy(() => import('./ReceptionsListePDF'));
-
-// Import dynamique de pdf
-let pdfModule = null;
+// Imports des fonctions de génération de PDF
+import { downloadReceptionRecu } from './ReceptionRecu';
+import { downloadReceptionsListePDF } from './ReceptionsListePDF';
 
 const Receptions = () => {
   const navigate = useNavigate()
@@ -61,7 +59,6 @@ const Receptions = () => {
   const [showFilters, setShowFilters] = useState(false)
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
   const [pdfLoading, setPdfLoading] = useState({})
-  const [pdfReady, setPdfReady] = useState(false)
   const [stats, setStats] = useState({
     total: 0,
     totalValue: 0,
@@ -69,22 +66,6 @@ const Receptions = () => {
     thisMonth: 0,
     avgValue: 0
   })
-
-  // Charger les modules PDF
-  useEffect(() => {
-    const loadPDFModules = async () => {
-      try {
-        const renderer = await import('@react-pdf/renderer');
-        pdfModule = renderer;
-        setPdfReady(true);
-        console.log('✅ Modules PDF chargés avec succès');
-      } catch (error) {
-        console.warn('⚠️ Modules PDF non disponibles:', error.message);
-        setPdfReady(false);
-      }
-    };
-    loadPDFModules();
-  }, []);
 
   const fetchData = async () => {
     setLoading(true)
@@ -166,10 +147,8 @@ const Receptions = () => {
 
   // 📄 Télécharger le PDF d'une réception individuelle
   const handleReceiptPDF = async (reception) => {
-    if (!pdfReady || !pdfModule) {
-      showNotification('Module PDF non disponible', 'error');
-      return;
-    }
+    // Éviter les téléchargements multiples
+    if (pdfLoading[reception.id]) return;
 
     setPdfLoading(prev => ({ ...prev, [reception.id]: true }));
     try {
@@ -180,22 +159,13 @@ const Receptions = () => {
         receiptData = response.data;
       }
       
-      const { default: ReceiptComponent } = await import('./ReceptionRecu');
-      const blob = await pdfModule.pdf(<ReceiptComponent reception={receiptData} />).toBlob();
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `recu_reception_${receiptData.receipt_number || receiptData.id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Utiliser directement la fonction de téléchargement
+      await downloadReceptionRecu(receiptData);
       
       showNotification('Reçu PDF téléchargé avec succès', 'success');
     } catch (error) {
       console.error('Erreur téléchargement PDF:', error);
-      showNotification('Erreur lors du téléchargement du PDF', 'error');
+      showNotification('Erreur lors du téléchargement du PDF: ' + error.message, 'error');
     } finally {
       setPdfLoading(prev => ({ ...prev, [reception.id]: false }));
     }
@@ -210,10 +180,7 @@ const Receptions = () => {
       return;
     }
 
-    if (!pdfReady || !pdfModule) {
-      showNotification('Module PDF non disponible', 'error');
-      return;
-    }
+    if (pdfLoading['filtered_list']) return;
 
     setPdfLoading(prev => ({ ...prev, ['filtered_list']: true }));
     try {
@@ -222,34 +189,12 @@ const Receptions = () => {
         dateRange: dateRange
       };
 
-      const { default: ListePDF } = await import('./ReceptionsListePDF');
-      const blob = await pdfModule.pdf(
-        <ListePDF receptions={filteredReceptions} filters={filters} />
-      ).toBlob();
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      
-      let fileName = 'receptions';
-      if (searchTerm) {
-        fileName += `_recherche_${searchTerm.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_')}`;
-      }
-      if (dateRange.start && dateRange.end) {
-        fileName += `_${dateRange.start}_au_${dateRange.end}`;
-      }
-      fileName += `_${new Date().toISOString().split('T')[0]}.pdf`;
-      
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      await downloadReceptionsListePDF(filteredReceptions, filters);
       
       showNotification(`PDF téléchargé (${filteredReceptions.length} réceptions)`, 'success');
     } catch (error) {
       console.error('Erreur téléchargement PDF:', error);
-      showNotification('Erreur lors du téléchargement du PDF', 'error');
+      showNotification('Erreur lors du téléchargement du PDF: ' + error.message, 'error');
     } finally {
       setPdfLoading(prev => ({ ...prev, ['filtered_list']: false }));
     }
@@ -424,7 +369,7 @@ const Receptions = () => {
             <button
               className={`btn btn-sm sm:btn-md gap-1 sm:gap-2 ${hasActiveFilters ? 'btn-info' : 'btn-outline'}`}
               onClick={handleDownloadFilteredReceptions}
-              disabled={!pdfReady || pdfLoading['filtered_list']}
+              disabled={pdfLoading['filtered_list']}
             >
               {pdfLoading['filtered_list'] ? (
                 <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
@@ -445,14 +390,6 @@ const Receptions = () => {
           </button>
         </div>
       </div>
-
-      {/* Indicateur PDF */}
-      {!pdfReady && (
-        <div className="alert alert-warning shadow-lg text-sm">
-          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span>Module PDF non disponible - Installation en cours...</span>
-        </div>
-      )}
 
       {/* Cartes statistiques */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
@@ -589,10 +526,10 @@ const Receptions = () => {
                           
                           {/* 📄 Bouton Reçu PDF */}
                           <button
-                            className={`btn btn-ghost btn-xs sm:btn-sm ${pdfReady ? 'text-success' : 'opacity-30'}`}
-                            title={pdfReady ? "Télécharger le reçu PDF" : "PDF non disponible"}
+                            className="btn btn-ghost btn-xs sm:btn-sm text-success"
+                            title="Télécharger le reçu PDF"
                             onClick={() => handleReceiptPDF(reception)}
-                            disabled={!pdfReady || pdfLoading[reception.id]}
+                            disabled={pdfLoading[reception.id]}
                           >
                             {pdfLoading[reception.id] ? (
                               <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
@@ -672,12 +609,6 @@ const Receptions = () => {
             <div className="flex items-center gap-1 text-primary font-medium">
               <Filter className="w-3 h-3" />
               <span>Filtres actifs</span>
-            </div>
-          )}
-          {!pdfReady && (
-            <div className="flex items-center gap-1 text-warning">
-              <AlertCircle className="w-3 h-3" />
-              <span>PDF non disponible</span>
             </div>
           )}
         </div>
